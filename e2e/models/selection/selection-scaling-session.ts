@@ -106,6 +106,11 @@ type SelectionScalingSessionDependencies = Readonly<{
   shapes: ShapeModel
 }>
 
+/** Результат завершения скейлинга с ожидаемой ошибкой фиксации шейпа. */
+type SelectionScaleCommitFailureResult = Readonly<{
+  errorMessage: string
+}>
+
 /** Полный жест указателя при скейлинге активного общего выделения или группы. */
 export class SelectionScalingSession {
   private readonly page: Page
@@ -572,6 +577,69 @@ export class SelectionScalingSession {
     expect(snapshot.boundsHeight, 'высота выделения после отпускания мыши должна быть положительной').toBeGreaterThan(0)
 
     return snapshot
+  }
+
+  /** Завершает реальный жест с одноразовой ошибкой после подготовки геометрии шейпа. */
+  async finishWithShapeCommitFailure({
+    shapeId
+  }: {
+    shapeId: string
+  }): Promise<SelectionScaleCommitFailureResult> {
+    const interaction = this.activeInteraction
+    expect(interaction?.mode, 'ошибка фиксации должна завершать жест через указатель').toBe('browser-pointer')
+    expect(shapeId.length, 'id шейпа не должен быть пустым').toBeGreaterThan(0)
+    if (!interaction || interaction.mode !== 'browser-pointer') {
+      throw new Error('Должна существовать сессия скейлинга общего выделения через указатель')
+    }
+
+    const failureMessage = 'Тестовая ошибка после подготовки геометрии шейпа'
+    const installed = await this._installShapeCommitFailure({ failureMessage, shapeId })
+    expect(installed, 'одноразовая ошибка фиксации должна быть установлена').toBe(true)
+    const pageErrorPromise = this.page.waitForEvent('pageerror')
+
+    try {
+      await this.page.mouse.up()
+      const pageError = await pageErrorPromise
+      await waitForCanvasRender({ page: this.page })
+
+      return {
+        errorMessage: pageError.message
+      }
+    } finally {
+      await this.page.keyboard.up('Alt')
+      await this.page.keyboard.up('Control')
+      await this.page.keyboard.up('Shift')
+      this.activeInteraction = null
+    }
+  }
+
+  /** Устанавливает одноразовый сбой сразу после настоящей подготовки шейпа к фиксации. */
+  private async _installShapeCommitFailure({
+    failureMessage,
+    shapeId
+  }: {
+    failureMessage: string
+    shapeId: string
+  }): Promise<boolean> {
+    return this.page.evaluate(({ failureMessage: message, shapeId: expectedShapeId }) => {
+      const { editor } = window as any
+      const selection = editor.canvas.getActiveObject()
+      const shape = selection?.getObjects?.().find((child: any) => child.id === expectedShapeId)
+      const manager = editor.shapeManager
+      const originalPrepare = manager.prepareActiveSelectionScaleCommit
+      if (shape?.type !== 'shape-group' || typeof originalPrepare !== 'function') return false
+
+      manager.prepareActiveSelectionScaleCommit = (params: any) => {
+        manager.prepareActiveSelectionScaleCommit = originalPrepare
+        const prepared = manager.prepareActiveSelectionScaleCommit(params)
+        const containsShape = prepared?.groups?.includes(shape)
+        if (!containsShape) throw new Error('Подготовленная фиксация должна содержать ожидаемый шейп')
+
+        throw new Error(message)
+      }
+
+      return true
+    }, { failureMessage, shapeId })
   }
 
   /** Прерывает скейлинг общего выделения событием отмены указателя. */

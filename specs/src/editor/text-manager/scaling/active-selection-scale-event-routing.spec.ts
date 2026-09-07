@@ -11,13 +11,7 @@ it('фиксирует поддерживаемое выделение чере�
   const selection = new ActiveSelection([first, second], { canvas: setup.canvas })
   const transform = { target: selection }
   const commitTextSelectionScaleMock = setup.editor.selectionManager.commitTextSelectionScale as jest.Mock
-  commitTextSelectionScaleMock.mockImplementation(({ commit }: { commit: () => void }) => {
-    commit()
-    return true
-  })
-  const commitActiveSelectionScalingSpy = jest
-    .spyOn(setup.textManager, 'commitActiveSelectionScaling')
-    .mockReturnValue(true)
+  commitTextSelectionScaleMock.mockReturnValue(true)
   const legacyCommitSpy = jest
     .spyOn(setup.textManager['scalingController'], 'handleObjectModified')
     .mockImplementation(() => {})
@@ -26,9 +20,8 @@ it('фиксирует поддерживаемое выделение чере�
 
   expect(commitTextSelectionScaleMock).toHaveBeenCalledWith({
     selection,
-    commit: expect.any(Function)
+    transform
   })
-  expect(commitActiveSelectionScalingSpy).toHaveBeenCalledWith({ selection, transform })
   expect(legacyCommitSpy).not.toHaveBeenCalled()
 
   setup.textManager.destroy()
@@ -51,7 +44,7 @@ it('сохраняет прежнюю фиксацию для выделения
 
   expect(commitTextSelectionScaleMock).toHaveBeenCalledWith({
     selection,
-    commit: expect.any(Function)
+    transform: undefined
   })
   expect(commitActiveSelectionScalingSpy).not.toHaveBeenCalled()
   expect(legacyCommitSpy).toHaveBeenCalledWith(event)

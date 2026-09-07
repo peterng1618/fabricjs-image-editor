@@ -181,6 +181,10 @@ export default class ShapeEventController {
     const selection = event.target instanceof ActiveSelection
       ? event.target
       : null
+    if (selection && this.dependencies.editor.selectionManager.shouldSkipShapeSelectionScaleCommit({
+      selection
+    })) return
+
     const resolvedAxes = event.transform
       ? resolveShapeScaleActionAxes({ transform: event.transform })
       : null
@@ -378,7 +382,7 @@ export default class ShapeEventController {
     if (!isShapeGroup(textNode.group)) return
 
     // ShapeManager получает text:changed раньше TextManager, поэтому сначала
-    // синхронизируем стили строк, от которых зависит измерение layout.
+    // синхронизируем стили строк, от которых зависит измерение компоновки.
     this.dependencies.editor.textManager.syncLineStylesWithText({
       textbox: textNode
     })

@@ -1,15 +1,22 @@
 import {
   ActiveSelection,
   Canvas,
-  Point,
   Transform
 } from 'fabric'
+import type {
+  RectangularScaleGestureMode,
+  RectangularScaleMultipliers
+} from '../../snapping-manager/scaling/rectangular-scale-gesture-projection'
+import type {
+  ActiveSelectionScaleDomainChildMeasurement,
+  ActiveSelectionScaleDomainMeasurement,
+  ActiveSelectionScaleFrame
+} from '../../selection-manager/scaling/active-selection-scale-domain-source'
 import {
   resolveMinimumShapeWidthForText
 } from '../layout/shape-layout'
 import {
-  SHAPE_DEFAULT_HORIZONTAL_ALIGN,
-  SHAPE_DEFAULT_VERTICAL_ALIGN
+  SHAPE_DEFAULT_HORIZONTAL_ALIGN
 } from '../domain/shape-presets'
 import {
   getShapeNodes
@@ -19,20 +26,25 @@ import {
 } from '../domain/shape-reference'
 import type {
   ShapeGroup,
-  ShapeHorizontalAlign,
   ShapeNode,
   ShapePadding,
   ShapeScalingState,
   ShapeTextNode,
   ShapeTransformOriginX,
-  ShapeTransformOriginY,
-  ShapeVerticalAlign
+  ShapeTransformOriginY
 } from '../types'
 import { applyShapeScalingPreviewLayout } from './shape-scaling-preview'
 import {
   applyActiveSelectionScale,
   applyRotatedActiveSelectionShapeGeometry,
   captureRotatedActiveSelectionShapeGeometry,
+  mergeActiveSelectionLocalBounds,
+  positionActiveSelectionShape,
+  resolveActiveSelectionObjectLocalBounds,
+  resolveActiveSelectionOriginOffset,
+  resolveActiveSelectionVerticalAttachment,
+  type ActiveSelectionLocalBounds,
+  type ActiveSelectionVerticalAttachment,
   type RotatedActiveSelectionShapeGeometry
 } from './active-selection-geometry'
 import {
@@ -42,25 +54,32 @@ import {
   resolveShapeTransformOriginYValue
 } from './shape-scaling-transform'
 import {
-  commitResolvedShapeScalingLayout,
   ensureShapeScalingState,
   resolveMinimumProportionalShapeScale,
   resolveMinimumTextFitHeight,
-  resolveShapeScalingCommitDimensions,
   resolveShapeScalingConstraintPadding,
   resolveShapeScalingPreviewDimensions,
   resolveShapeScalingPreviewLayout,
   resolveShapeScalingTextWrapPolicy,
-  resolveShapeScalingStartDimensions,
   SHAPE_SCALING_MIN_SIZE as MIN_SIZE,
-  SHAPE_SCALING_SCALE_EPSILON as SCALE_EPSILON,
-  SHAPE_SCALING_SIZE_EPSILON as SIZE_EPSILON
+  SHAPE_SCALING_SCALE_EPSILON as SCALE_EPSILON
 } from './shape-scaling-layout'
-import type {
-  ShapeScalingCommitDimensions,
-  ShapeScalingPointerEvent,
-  ShapeScalingStartDimensions
-} from './shape-scaling-layout'
+import type { ShapeScalingPointerEvent } from './shape-scaling-layout'
+import {
+  commitActiveSelectionShapeGroupScaling,
+  type ActiveSelectionShapeLayoutScale
+} from './active-selection-scale-commit'
+import {
+  applyActiveSelectionShapeDomainChild,
+  createActiveSelectionShapeDomainChildMeasurement
+} from './active-selection-scale-domain-geometry'
+import {
+  resolveActiveSelectionShapeScaleConstraint,
+  resolveMinimumSelectionScaleForSize,
+  resolveProportionalSelectionScale,
+  resolveSelectionAvailableHeight,
+  resolveSelectionAvailableWidth
+} from './active-selection-scale-constraints'
 
 /**
  * Shape-группа и её узлы, участвующие в текущем scaling active selection.
@@ -105,21 +124,6 @@ export type ActiveSelectionCommittedScale = {
 }
 
 /**
- * Вертикальная привязка shape-группы внутри bounds active selection.
- */
-type ActiveSelectionVerticalAttachment = 'top' | 'bottom' | 'center'
-
-/**
- * Bounds shape-группы в локальной плоскости active selection.
- */
-type ActiveSelectionLocalBounds = {
-  left: number
-  right: number
-  top: number
-  bottom: number
-}
-
-/**
  * Снимок одной shape-группы внутри scaling session active selection.
  */
 type ActiveSelectionShapeScalingSessionItem = {
@@ -130,28 +134,10 @@ type ActiveSelectionShapeScalingSessionItem = {
   verticalAttachment: ActiveSelectionVerticalAttachment
 }
 
-/**
- * Layout scale, применённый к shape-группе внутри active selection.
- */
-type ActiveSelectionShapeLayoutScale = {
-  scaleX: number
-  scaleY: number
-}
-
 /** Размеры и масштаб компоновки одного шейпа на текущем кадре. */
 type ActiveSelectionShapePreviewDimensions = {
   layoutScale: ActiveSelectionShapeLayoutScale
   minimumHeight: number
-}
-
-/** Данные, необходимые для окончательной фиксации размеров одного шейпа. */
-type ActiveSelectionShapeCommitPlan = {
-  alignH: ShapeHorizontalAlign
-  alignV: ShapeVerticalAlign
-  dimensions: ShapeScalingCommitDimensions
-  hasPreviewState: boolean
-  startDimensions: ShapeScalingStartDimensions
-  wrapPolicy: ReturnType<typeof resolveShapeScalingTextWrapPolicy>
 }
 
 /**
@@ -159,6 +145,7 @@ type ActiveSelectionShapeCommitPlan = {
  */
 type ActiveSelectionScalingSession = {
   bounds: ActiveSelectionLocalBounds
+  fixedAnchor: Readonly<{ x: number; y: number }>
   items: Map<ShapeGroup, ActiveSelectionShapeScalingSessionItem>
 }
 
@@ -169,6 +156,93 @@ type ActiveSelectionScalingPreview = {
   proportionalLayoutResults: ActiveSelectionProportionalLayoutResults | null
   selectionScale: ActiveSelectionAppliedScale
   session: ActiveSelectionScalingSession
+}
+
+/** Рассчитанная компоновка одного шейпа до изменения живого объекта. */
+type ActiveSelectionShapeDomainChildPlan = Readonly<{
+  isProportionalScaling: boolean
+  item: ActiveSelectionShapeScalingItem
+  layout: ReturnType<typeof resolveShapeScalingPreviewLayout>
+  layoutScale: ActiveSelectionShapeLayoutScale
+}>
+
+/** Внутренний план, соответствующий опубликованному доменному измерению. */
+type ActiveSelectionShapeDomainPlan = Readonly<{
+  children: readonly ActiveSelectionShapeDomainChildPlan[]
+  preview: ActiveSelectionScalingPreview
+}>
+
+/** Объединяет локальные границы всех детей исходного общего выделения. */
+function resolveSelectionLocalBounds({
+  selection
+}: {
+  selection: ActiveSelection
+}): ActiveSelectionLocalBounds {
+  const [first, ...rest] = selection.getObjects()
+  if (!first) throw new Error('Сессия скейлинга шейпов требует непустое общее выделение')
+
+  let bounds = resolveActiveSelectionObjectLocalBounds({ target: first })
+  for (const object of rest) {
+    bounds = mergeActiveSelectionLocalBounds({
+      current: bounds,
+      next: resolveActiveSelectionObjectLocalBounds({ target: object })
+    })
+  }
+
+  return bounds
+}
+
+/** Создаёт неизменяемые привязки шейпов к исходной рамке общего выделения. */
+function createSelectionSessionItems({
+  items,
+  selection,
+  selectionBounds,
+  transformOriginX,
+  transformOriginY
+}: {
+  items: readonly ActiveSelectionShapeScalingItem[]
+  selection: ActiveSelection
+  selectionBounds: ActiveSelectionLocalBounds
+  transformOriginX: ShapeTransformOriginX
+  transformOriginY: ShapeTransformOriginY
+}): Map<ShapeGroup, ActiveSelectionShapeScalingSessionItem> {
+  const sessionItems = new Map<ShapeGroup, ActiveSelectionShapeScalingSessionItem>()
+
+  for (const { group } of items) {
+    const bounds = resolveActiveSelectionObjectLocalBounds({ target: group })
+    const transformOriginPoint = group.getPositionByOrigin(transformOriginX, transformOriginY)
+
+    sessionItems.set(group, {
+      bounds,
+      rotatedGeometry: captureRotatedActiveSelectionShapeGeometry({ group, selection }),
+      transformOriginX,
+      transformOriginPointX: transformOriginPoint.x,
+      verticalAttachment: resolveActiveSelectionVerticalAttachment({
+        selectionBounds,
+        shapeBounds: bounds
+      })
+    })
+  }
+
+  return sessionItems
+}
+
+/** Возвращает неподвижную точку исходной рамки для выбранной точки преобразования. */
+function resolveSelectionFixedAnchor({
+  bounds,
+  transformOriginX,
+  transformOriginY
+}: {
+  bounds: ActiveSelectionLocalBounds
+  transformOriginX: ShapeTransformOriginX
+  transformOriginY: ShapeTransformOriginY
+}): Readonly<{ x: number; y: number }> {
+  return Object.freeze({
+    x: ((bounds.left + bounds.right) / 2)
+      + (resolveActiveSelectionOriginOffset({ origin: transformOriginX }) * (bounds.right - bounds.left)),
+    y: ((bounds.top + bounds.bottom) / 2)
+      + (resolveActiveSelectionOriginOffset({ origin: transformOriginY }) * (bounds.bottom - bounds.top))
+  })
 }
 
 /**
@@ -200,6 +274,9 @@ export default class ShapeActiveSelectionScalingController {
    */
   private groupLayoutScales: WeakMap<ShapeGroup, ActiveSelectionShapeLayoutScale>
 
+  /** Планы доменной компоновки, ожидающие единственного применения к живым объектам. */
+  private domainPlans: WeakMap<ActiveSelectionScaleDomainMeasurement, ActiveSelectionShapeDomainPlan>
+
   /**
    * Инициализирует controller скейлинга shape-групп внутри active selection.
    */
@@ -215,6 +292,7 @@ export default class ShapeActiveSelectionScalingController {
     this.scalingState = new WeakMap()
     this.scalingSessions = new WeakMap()
     this.groupLayoutScales = new WeakMap()
+    this.domainPlans = new WeakMap()
   }
 
   /**
@@ -273,32 +351,132 @@ export default class ShapeActiveSelectionScalingController {
     this.canvas.requestRenderAll()
   }
 
+  /** Фиксирует исходное состояние шейпов смешанного выделения до первой мутации Fabric. */
+  public beginDomainScaling({
+    selection,
+    transform
+  }: {
+    selection: ActiveSelection
+    transform: Transform
+  }): boolean {
+    const items = this._collectPreviewItems({ selection, transform })
+    if (items.length === 0) return false
+
+    this._ensureScalingSession({ items, selection, transform })
+
+    return true
+  }
+
+  /** Рассчитывает фактическую геометрию шейпов без изменения живых объектов и общей рамки. */
+  public measureDomainScale({
+    mode,
+    multipliers,
+    selection,
+    transform
+  }: {
+    mode: RectangularScaleGestureMode
+    multipliers: RectangularScaleMultipliers
+    selection: ActiveSelection
+    transform: Transform
+  }): ActiveSelectionScaleDomainMeasurement {
+    const items = this._collectPreviewItems({ selection, transform })
+    if (items.length === 0) throw new Error('Доменное измерение требует хотя бы один шейп')
+
+    const preview = this._resolveScalingPreview({ items, mode, multipliers, selection, transform })
+    const children = Object.freeze(items.map((item) => {
+      return this._resolveDomainChildPlan({ item, preview })
+    }))
+    const measurement = Object.freeze({
+      children: Object.freeze(children.map((child) => {
+        return this._createDomainChildMeasurement({ child, preview })
+      })),
+      multipliers: Object.freeze({
+        x: preview.selectionScale.scaleX,
+        y: preview.selectionScale.scaleY
+      })
+    })
+
+    this.domainPlans.set(measurement, Object.freeze({ children, preview }))
+
+    return measurement
+  }
+
+  /** Применяет один рассчитанный план шейпов с компенсацией фактической общей рамки. */
+  public applyDomainScale({
+    children,
+    frame,
+    measurement,
+    selection
+  }: {
+    children: readonly ActiveSelectionScaleDomainChildMeasurement[]
+    frame: ActiveSelectionScaleFrame
+    measurement: ActiveSelectionScaleDomainMeasurement
+    selection: ActiveSelection
+  }): void {
+    const plan = this._getDomainPlan({ measurement, selection })
+    if (children.length !== plan.children.length) {
+      throw new Error('Применение должно содержать все измеренные шейпы')
+    }
+
+    const applications = plan.children.map((childPlan, index) => {
+      const child = children[index]
+      if (!child || child.target !== childPlan.item.group) {
+        throw new Error('Порядок применяемых шейпов должен совпадать с измерением')
+      }
+
+      return { child, childPlan }
+    })
+
+    applications.forEach(({ child, childPlan }) => {
+      this._applyDomainChildPlan({ child, childPlan, frame, measurement })
+    })
+  }
+
+  /** Восстанавливает внутренние масштабы фиксации для уже подтверждённого измерения. */
+  public confirmDomainScale({
+    measurement,
+    selection
+  }: {
+    measurement: ActiveSelectionScaleDomainMeasurement
+    selection: ActiveSelection
+  }): void {
+    const plan = this._getDomainPlan({ measurement, selection })
+
+    this._confirmDomainPlan({ measurement, plan, selection })
+  }
+
   /** Рассчитывает общий масштаб и ограничения одного кадра скейлинга. */
   private _resolveScalingPreview({
     event,
     items,
+    mode,
+    multipliers,
     selection,
     transform
   }: {
     event?: ShapeScalingPointerEvent
     items: ActiveSelectionShapeScalingItem[]
+    mode?: RectangularScaleGestureMode
+    multipliers?: RectangularScaleMultipliers
     selection: ActiveSelection
     transform: Transform
   }): ActiveSelectionScalingPreview {
     const session = this._ensureScalingSession({ selection, transform, items })
     const { isCornerScaleAction } = resolveShapeScaleActionAxes({ transform })
     const isShiftPressed = Boolean(event && 'shiftKey' in event && event.shiftKey)
-    const isProportionalCornerScale = isCornerScaleAction && !isShiftPressed
-    const scaleX = Math.abs(selection.scaleX ?? 1) || 1
-    const scaleY = Math.abs(selection.scaleY ?? 1) || 1
+    const isProportionalCornerScale = mode
+      ? mode === 'uniform'
+      : isCornerScaleAction && !isShiftPressed
+    const scaleX = multipliers?.x ?? (Math.abs(selection.scaleX ?? 1) || 1)
+    const scaleY = multipliers?.y ?? (Math.abs(selection.scaleY ?? 1) || 1)
     const needsProportionalLayout = isProportionalCornerScale
       && (scaleX < 1 - SCALE_EPSILON || scaleY < 1 - SCALE_EPSILON)
     const proportionalLayoutResults = needsProportionalLayout
       ? this._resolveProportionalLayoutResults({ items })
       : null
     const requestedScale = this._resolveSelectionScale({
-      event,
       items,
+      isProportionalCornerScale,
       proportionalLayoutResults,
       scaleX,
       scaleY,
@@ -307,6 +485,7 @@ export default class ShapeActiveSelectionScalingController {
     })
     const selectionScale = this._resolveSelectionScaleAtPointerBoundary({
       event,
+      isProportionalCornerScale,
       items,
       selection,
       selectionScale: requestedScale,
@@ -418,6 +597,128 @@ export default class ShapeActiveSelectionScalingController {
     }
   }
 
+  /** Рассчитывает внутреннюю компоновку одного шейпа для доменного измерения. */
+  private _resolveDomainChildPlan({
+    item,
+    preview
+  }: {
+    item: ActiveSelectionShapeScalingItem
+    preview: ActiveSelectionScalingPreview
+  }): ActiveSelectionShapeDomainChildPlan {
+    const measurementItem = {
+      ...item,
+      state: {
+        ...item.state,
+        isProportionalScaling: preview.isProportionalCornerScale
+      }
+    }
+    const { layoutScale, minimumHeight } = this._resolveShapePreviewDimensions({
+      item: measurementItem,
+      preview
+    })
+    const layout = resolveShapeScalingPreviewLayout({
+      appliedScaleX: layoutScale.scaleX,
+      appliedScaleY: layoutScale.scaleY,
+      group: measurementItem.group,
+      minimumHeight,
+      state: measurementItem.state,
+      text: measurementItem.text
+    })
+
+    return Object.freeze({
+      isProportionalScaling: preview.isProportionalCornerScale,
+      item,
+      layout,
+      layoutScale
+    })
+  }
+
+  /** Переводит план шейпа в фактические границы неизменяемой локальной плоскости. */
+  private _createDomainChildMeasurement({
+    child,
+    preview
+  }: {
+    child: ActiveSelectionShapeDomainChildPlan
+    preview: ActiveSelectionScalingPreview
+  }): ActiveSelectionScaleDomainChildMeasurement {
+    const sessionItem = preview.session.items.get(child.item.group)
+    if (!sessionItem || sessionItem.rotatedGeometry) {
+      throw new Error('Смешанное измерение поддерживает только прямой канонический шейп')
+    }
+
+    return createActiveSelectionShapeDomainChildMeasurement({
+      ...sessionItem,
+      fixedAnchor: preview.session.fixedAnchor,
+      layout: child.layout,
+      multipliers: {
+        x: preview.selectionScale.scaleX,
+        y: preview.selectionScale.scaleY
+      },
+      target: child.item.group
+    })
+  }
+
+  /** Применяет измеренную компоновку одного шейпа к общей производной рамке. */
+  private _applyDomainChildPlan({
+    child,
+    childPlan,
+    frame,
+    measurement
+  }: {
+    child: ActiveSelectionScaleDomainChildMeasurement
+    childPlan: ActiveSelectionShapeDomainChildPlan
+    frame: ActiveSelectionScaleFrame
+    measurement: ActiveSelectionScaleDomainMeasurement
+  }): void {
+    const { group, shape, text } = childPlan.item
+    applyActiveSelectionShapeDomainChild({
+      child,
+      frame,
+      group,
+      layout: childPlan.layout,
+      measurement,
+      shape,
+      text
+    })
+  }
+
+  /** Возвращает план, принадлежащий текущей доменной сессии общего выделения. */
+  private _getDomainPlan({
+    measurement,
+    selection
+  }: {
+    measurement: ActiveSelectionScaleDomainMeasurement
+    selection: ActiveSelection
+  }): ActiveSelectionShapeDomainPlan {
+    const plan = this.domainPlans.get(measurement)
+    if (!plan || plan.preview.session !== this.scalingSessions.get(selection)) {
+      throw new Error('Применению шейпов должно предшествовать измерение той же сессии')
+    }
+
+    return plan
+  }
+
+  /** Сохраняет внутреннее состояние только после полного применения доменного плана. */
+  private _confirmDomainPlan({
+    measurement,
+    plan,
+    selection
+  }: {
+    measurement: ActiveSelectionScaleDomainMeasurement
+    plan: ActiveSelectionShapeDomainPlan
+    selection: ActiveSelection
+  }): void {
+    for (const childPlan of plan.children) {
+      childPlan.item.state.isProportionalScaling = childPlan.isProportionalScaling
+      this.groupLayoutScales.set(childPlan.item.group, childPlan.layoutScale)
+    }
+
+    this.scalingState.set(selection, {
+      scaleX: measurement.multipliers.x,
+      scaleY: measurement.multipliers.y
+    })
+  }
+
   /**
    * Фиксирует resize дочерней shape-группы после масштабирования ActiveSelection.
    */
@@ -432,120 +733,38 @@ export default class ShapeActiveSelectionScalingController {
     scaleY: number
     transform?: Transform | null
   }): boolean {
-    const {
-      shape,
-      text
-    } = getShapeNodes({ group })
-
-    if (!shape || !text) {
-      this._clearGroupScalingState({ group })
-      return false
-    }
-
-    const plan = this._resolveGroupScalingCommitPlan({
+    const didCommit = this.materializeGroupScaling({
       group,
       scaleX,
       scaleY,
-      text,
       transform
-    })
-    const {
-      alignH,
-      alignV,
-      dimensions,
-      hasPreviewState,
-      startDimensions,
-      wrapPolicy
-    } = plan
-    const { width, height, hasWidthChange, hasDimensionChange } = dimensions
-
-    if (!hasDimensionChange && !hasPreviewState) {
-      this._clearGroupScalingState({ group })
-      return false
-    }
-
-    commitResolvedShapeScalingLayout({
-      group,
-      shape,
-      text,
-      width,
-      height,
-      alignH,
-      alignV,
-      startManualBaseWidth: startDimensions.startManualBaseWidth,
-      startManualBaseHeight: startDimensions.startManualBaseHeight,
-      canScaleWidth: startDimensions.canScaleWidth,
-      canScaleHeight: startDimensions.canScaleHeight,
-      hasWidthChange,
-      wrapPolicy
     })
 
     this._clearGroupScalingState({ group })
 
-    return hasDimensionChange || hasPreviewState
+    return didCommit
   }
 
-  /** Собирает окончательные размеры и правила фиксации одного шейпа. */
-  private _resolveGroupScalingCommitPlan({
+  /** Переносит временный масштаб шейпа в размеры, сохраняя состояние общей транзакции. */
+  public materializeGroupScaling({
     group,
     scaleX,
     scaleY,
-    text,
     transform
   }: {
     group: ShapeGroup
     scaleX: number
     scaleY: number
-    text: ShapeTextNode
     transform?: Transform | null
-  }): ActiveSelectionShapeCommitPlan {
-    const state = this.shapeScalingState.get(group)
-    const capturedDimensions = state ?? resolveShapeScalingStartDimensions({
+  }): boolean {
+    return commitActiveSelectionShapeGroupScaling({
       group,
+      layoutScale: this.groupLayoutScales.get(group),
+      scaleX,
+      scaleY,
+      state: this.shapeScalingState.get(group),
       transform
     })
-    const resolvedAxes = transform
-      ? resolveShapeScaleActionAxes({
-        transform
-      })
-      : null
-    const canScaleWidth = state?.canScaleWidth
-      ?? resolvedAxes?.canScaleWidth
-      ?? (Math.abs(scaleX - 1) > SCALE_EPSILON)
-    const canScaleHeight = state?.canScaleHeight
-      ?? resolvedAxes?.canScaleHeight
-      ?? (Math.abs(scaleY - 1) > SCALE_EPSILON)
-    const startDimensions = {
-      ...capturedDimensions,
-      canScaleWidth,
-      canScaleHeight
-    }
-    const constraintPadding = resolveShapeScalingConstraintPadding({ group })
-    const layoutScale = this.groupLayoutScales.get(group) ?? {
-      scaleX,
-      scaleY
-    }
-    const wrapPolicy = resolveShapeScalingTextWrapPolicy({
-      isProportionalScaling: state?.isProportionalScaling,
-      startTextSplitByGrapheme: state?.startTextSplitByGrapheme
-    })
-
-    return {
-      alignH: group.shapeAlignHorizontal ?? SHAPE_DEFAULT_HORIZONTAL_ALIGN,
-      alignV: group.shapeAlignVertical ?? SHAPE_DEFAULT_VERTICAL_ALIGN,
-      dimensions: resolveShapeScalingCommitDimensions({
-        group,
-        text,
-        constraintPadding,
-        startDimensions,
-        scaleX: layoutScale.scaleX,
-        scaleY: layoutScale.scaleY,
-        wrapPolicy
-      }),
-      hasPreviewState: Boolean(state || this.groupLayoutScales.has(group)),
-      startDimensions,
-      wrapPolicy
-    }
   }
 
   /** Очищает временное состояние одного шейпа после фиксации или отмены. */
@@ -663,42 +882,22 @@ export default class ShapeActiveSelectionScalingController {
     const transformOriginY = resolveShapeTransformOriginYValue({
       value: transform.originY
     }) ?? 'center'
-    const firstItem = items[0] as ActiveSelectionShapeScalingItem
-    const shapeBoundsByGroup = new Map<ShapeGroup, ActiveSelectionLocalBounds>()
-    const sessionItems = new Map<ShapeGroup, ActiveSelectionShapeScalingSessionItem>()
-    let selectionBounds = this._resolveShapeLocalBounds({
-      group: firstItem.group
-    })
-
-    for (const { group } of items) {
-      const bounds = this._resolveShapeLocalBounds({ group })
-
-      shapeBoundsByGroup.set(group, bounds)
-
-      selectionBounds = this._mergeBounds({
-        current: selectionBounds,
-        next: bounds
-      })
-    }
-
-    for (const [group, bounds] of shapeBoundsByGroup) {
-      const transformOriginPoint = group.getPositionByOrigin(transformOriginX, transformOriginY)
-
-      sessionItems.set(group, {
-        bounds,
-        rotatedGeometry: captureRotatedActiveSelectionShapeGeometry({ group, selection }),
-        transformOriginX,
-        transformOriginPointX: transformOriginPoint.x,
-        verticalAttachment: this._resolveVerticalAttachment({
-          selectionBounds,
-          shapeBounds: bounds
-        })
-      })
-    }
+    const selectionBounds = resolveSelectionLocalBounds({ selection })
 
     const session = {
       bounds: selectionBounds,
-      items: sessionItems
+      fixedAnchor: resolveSelectionFixedAnchor({
+        bounds: selectionBounds,
+        transformOriginX,
+        transformOriginY
+      }),
+      items: createSelectionSessionItems({
+        items,
+        selection,
+        selectionBounds,
+        transformOriginX,
+        transformOriginY
+      })
     }
 
     this.scalingSessions.set(selection, session)
@@ -711,33 +910,27 @@ export default class ShapeActiveSelectionScalingController {
    */
   private _resolveSelectionScale({
     items,
+    isProportionalCornerScale,
     session,
     transform,
     proportionalLayoutResults,
     scaleX,
-    scaleY,
-    event
+    scaleY
   }: {
     items: ActiveSelectionShapeScalingItem[]
+    isProportionalCornerScale: boolean
     session: ActiveSelectionScalingSession
     transform: Transform
     proportionalLayoutResults: ActiveSelectionProportionalLayoutResults | null
     scaleX: number
     scaleY: number
-    event?: ShapeScalingPointerEvent
   }): ActiveSelectionAppliedScale {
     const {
       canScaleWidth,
-      canScaleHeight,
-      isCornerScaleAction
+      canScaleHeight
     } = resolveShapeScaleActionAxes({
       transform
     })
-    const isShiftPressed = Boolean(event && 'shiftKey' in event && event.shiftKey)
-    const isProportionalCornerScale = isCornerScaleAction
-      && !isShiftPressed
-    let appliedScaleX = scaleX
-    let appliedScaleY = scaleY
 
     if (isProportionalCornerScale) {
       const proportionalScale = Math.max(scaleX, scaleY)
@@ -763,6 +956,35 @@ export default class ShapeActiveSelectionScalingController {
         scaleY: resolvedProportionalScale
       }
     }
+
+    return this._resolveFreeSelectionScale({
+      canScaleHeight,
+      canScaleWidth,
+      items,
+      scaleX,
+      scaleY,
+      session
+    })
+  }
+
+  /** Последовательно применяет ограничения обеих осей свободного скейлинга. */
+  private _resolveFreeSelectionScale({
+    canScaleHeight,
+    canScaleWidth,
+    items,
+    scaleX,
+    scaleY,
+    session
+  }: {
+    canScaleHeight: boolean
+    canScaleWidth: boolean
+    items: ActiveSelectionShapeScalingItem[]
+    scaleX: number
+    scaleY: number
+    session: ActiveSelectionScalingSession
+  }): ActiveSelectionAppliedScale {
+    let appliedScaleX = scaleX
+    let appliedScaleY = scaleY
 
     if (canScaleWidth) {
       appliedScaleX = this._resolveSelectionScaleX({
@@ -825,51 +1047,29 @@ export default class ShapeActiveSelectionScalingController {
     allowGrowthX: boolean
     allowGrowthY: boolean
   }): number {
-    let appliedScale = scale
+    const constraints = items.map((item) => {
+      const sessionItem = session.items.get(item.group)
+      const layoutResult = proportionalLayoutResults.get(item.group)
+      if (!sessionItem || !layoutResult) {
+        throw new Error('Для шейпа должны быть рассчитаны ограничения текущей сессии')
+      }
 
-    for (const item of items) {
-      const sessionItem = session.items.get(item.group) as ActiveSelectionShapeScalingSessionItem
-      const proportionalLayoutResult = proportionalLayoutResults.get(item.group)!
-      const minimumLayoutScale = proportionalLayoutResult.minimumScale
-      const minimumWidth = item.state.canScaleWidth
-        ? Math.max(MIN_SIZE, item.state.startWidth * minimumLayoutScale)
-        : item.state.startWidth
-      const minimumHeight = item.state.canScaleHeight
-        ? Math.max(MIN_SIZE, item.state.startHeight * minimumLayoutScale)
-        : item.state.startHeight
-      const availableWidth = this._resolveSelectionAvailableWidth({
+      return resolveActiveSelectionShapeScaleConstraint({
+        layoutMinimumScale: layoutResult.minimumScale,
+        limits: item.state,
         selectionBounds: session.bounds,
         shapeBounds: sessionItem.bounds,
-        originX: sessionItem.transformOriginX
-      })
-      const availableHeight = this._resolveSelectionAvailableHeight({
-        selectionBounds: session.bounds,
-        shapeBounds: sessionItem.bounds,
+        transformOriginX: sessionItem.transformOriginX,
         verticalAttachment: sessionItem.verticalAttachment
       })
-      const minimumSelectionScaleX = item.state.canScaleWidth
-        ? this._resolveMinimumScaleForSize({
-          minimumSize: minimumWidth,
-          startSize: availableWidth,
-          allowGrowth: allowGrowthX
-        })
-        : scale
-      const minimumSelectionScaleY = item.state.canScaleHeight
-        ? this._resolveMinimumScaleForSize({
-          minimumSize: minimumHeight,
-          startSize: availableHeight,
-          allowGrowth: allowGrowthY
-        })
-        : scale
+    })
 
-      appliedScale = Math.max(
-        appliedScale,
-        minimumSelectionScaleX,
-        minimumSelectionScaleY
-      )
-    }
-
-    return appliedScale
+    return resolveProportionalSelectionScale({
+      allowGrowthX,
+      allowGrowthY,
+      constraints,
+      requestedScale: scale
+    })
   }
 
   /**
@@ -877,6 +1077,7 @@ export default class ShapeActiveSelectionScalingController {
    * где Fabric уже перестал обновлять scale после быстрого движения pointer.
    */
   private _resolveSelectionScaleAtPointerBoundary({
+    isProportionalCornerScale,
     selection,
     items,
     session,
@@ -884,6 +1085,7 @@ export default class ShapeActiveSelectionScalingController {
     selectionScale,
     event
   }: {
+    isProportionalCornerScale: boolean
     selection: ActiveSelection
     items: ActiveSelectionShapeScalingItem[]
     session: ActiveSelectionScalingSession
@@ -891,16 +1093,11 @@ export default class ShapeActiveSelectionScalingController {
     selectionScale: ActiveSelectionAppliedScale
     event?: ShapeScalingPointerEvent
   }): ActiveSelectionAppliedScale {
-    const {
-      canScaleWidth,
-      canScaleHeight,
-      isCornerScaleAction
-    } = resolveShapeScaleActionAxes({
+    const { canScaleWidth, canScaleHeight } = resolveShapeScaleActionAxes({
       transform
     })
-    const isShiftPressed = Boolean(event && 'shiftKey' in event && event.shiftKey)
 
-    if (isCornerScaleAction && !isShiftPressed) return selectionScale
+    if (isProportionalCornerScale) return selectionScale
 
     const pointerReachedOrPassedOriginX = canScaleWidth && this._hasPointerReachedSelectionScaleOrigin({
       selection,
@@ -929,12 +1126,12 @@ export default class ShapeActiveSelectionScalingController {
 
     return this._resolveSelectionScale({
       items,
+      isProportionalCornerScale,
       session,
       transform,
       proportionalLayoutResults: null,
       scaleX: nextScaleX,
-      scaleY: nextScaleY,
-      event
+      scaleY: nextScaleY
     })
   }
 
@@ -962,12 +1159,12 @@ export default class ShapeActiveSelectionScalingController {
         item,
         scaleY
       })
-      const availableWidth = this._resolveSelectionAvailableWidth({
+      const availableWidth = resolveSelectionAvailableWidth({
         selectionBounds: session.bounds,
         shapeBounds: sessionItem.bounds,
         originX: sessionItem.transformOriginX
       })
-      const minimumSelectionScaleX = this._resolveMinimumScaleForSize({
+      const minimumSelectionScaleX = resolveMinimumSelectionScaleForSize({
         minimumSize: minimumWidth,
         startSize: availableWidth,
         allowGrowth
@@ -1008,12 +1205,12 @@ export default class ShapeActiveSelectionScalingController {
         item,
         scaleX: layoutScaleX
       })
-      const availableHeight = this._resolveSelectionAvailableHeight({
+      const availableHeight = resolveSelectionAvailableHeight({
         selectionBounds: session.bounds,
         shapeBounds: sessionItem.bounds,
         verticalAttachment: sessionItem.verticalAttachment
       })
-      const minimumSelectionScaleY = this._resolveMinimumScaleForSize({
+      const minimumSelectionScaleY = resolveMinimumSelectionScaleForSize({
         minimumSize: minimumHeight,
         startSize: availableHeight,
         allowGrowth
@@ -1082,7 +1279,7 @@ export default class ShapeActiveSelectionScalingController {
       item,
       scaleY: selectionScaleY
     })
-    const minimumScaleX = this._resolveMinimumScaleForSize({
+    const minimumScaleX = resolveMinimumSelectionScaleForSize({
       minimumSize: minimumWidth,
       startSize: state.startWidth,
       allowGrowth: state.canScaleHeight
@@ -1110,7 +1307,7 @@ export default class ShapeActiveSelectionScalingController {
       item,
       scaleX
     })
-    const minimumScaleY = this._resolveMinimumScaleForSize({
+    const minimumScaleY = resolveMinimumSelectionScaleForSize({
       minimumSize: minimumHeight,
       startSize: state.startHeight,
       allowGrowth: state.canScaleWidth
@@ -1176,25 +1373,6 @@ export default class ShapeActiveSelectionScalingController {
   }
 
   /**
-   * Переводит минимальный размер shape-группы в минимальный scale selection.
-   */
-  private _resolveMinimumScaleForSize({
-    minimumSize,
-    startSize,
-    allowGrowth
-  }: {
-    minimumSize: number
-    startSize: number
-    allowGrowth: boolean
-  }): number {
-    const minimumScale = Math.max(MIN_SIZE / startSize, minimumSize / startSize)
-
-    if (allowGrowth) return minimumScale
-
-    return Math.min(1, minimumScale)
-  }
-
-  /**
    * Возвращает минимальную высоту shape-группы для текущего horizontal scale.
    */
   private _resolveMinimumShapeHeight({
@@ -1219,149 +1397,6 @@ export default class ShapeActiveSelectionScalingController {
       padding: constraintPadding,
       measurementCache: state.previewTextMeasurementCache
     })
-  }
-
-  /**
-   * Возвращает доступную ширину active selection для конкретной shape-группы.
-   */
-  private _resolveSelectionAvailableWidth({
-    selectionBounds,
-    shapeBounds,
-    originX
-  }: {
-    selectionBounds: ActiveSelectionLocalBounds
-    shapeBounds: ActiveSelectionLocalBounds
-    originX: ShapeTransformOriginX
-  }): number {
-    const originOffset = this._resolveOriginOffset({ origin: originX })
-
-    if (originOffset > 0) {
-      return Math.max(MIN_SIZE, shapeBounds.right - selectionBounds.left)
-    }
-    if (originOffset < 0) {
-      return Math.max(MIN_SIZE, selectionBounds.right - shapeBounds.left)
-    }
-
-    const shapeCenterX = (shapeBounds.left + shapeBounds.right) / 2
-
-    return Math.max(
-      MIN_SIZE,
-      2 * Math.min(
-        shapeCenterX - selectionBounds.left,
-        selectionBounds.right - shapeCenterX
-      )
-    )
-  }
-
-  /**
-   * Возвращает доступную высоту active selection для конкретной shape-группы.
-   */
-  private _resolveSelectionAvailableHeight({
-    selectionBounds,
-    shapeBounds,
-    verticalAttachment
-  }: {
-    selectionBounds: ActiveSelectionLocalBounds
-    shapeBounds: ActiveSelectionLocalBounds
-    verticalAttachment: ActiveSelectionVerticalAttachment
-  }): number {
-    if (verticalAttachment === 'top') {
-      return Math.max(MIN_SIZE, selectionBounds.bottom - shapeBounds.top)
-    }
-
-    if (verticalAttachment === 'bottom') {
-      return Math.max(MIN_SIZE, shapeBounds.bottom - selectionBounds.top)
-    }
-
-    const shapeCenterY = (shapeBounds.top + shapeBounds.bottom) / 2
-
-    return Math.max(
-      MIN_SIZE,
-      2 * Math.min(
-        shapeCenterY - selectionBounds.top,
-        selectionBounds.bottom - shapeCenterY
-      )
-    )
-  }
-
-  /**
-   * Возвращает локальные bounds shape-группы до применения текущего selection transform.
-   */
-  private _resolveShapeLocalBounds({
-    group
-  }: {
-    group: ShapeGroup
-  }): ActiveSelectionLocalBounds {
-    const corners = [
-      group.getPositionByOrigin('left', 'top'),
-      group.getPositionByOrigin('right', 'top'),
-      group.getPositionByOrigin('right', 'bottom'),
-      group.getPositionByOrigin('left', 'bottom')
-    ]
-    const xCoordinates = corners.map(({ x }) => x)
-    const yCoordinates = corners.map(({ y }) => y)
-
-    return {
-      bottom: Math.max(...yCoordinates),
-      left: Math.min(...xCoordinates),
-      right: Math.max(...xCoordinates),
-      top: Math.min(...yCoordinates)
-    }
-  }
-
-  /**
-   * Объединяет bounds active selection с bounds следующей shape-группы.
-   */
-  private _mergeBounds({
-    current,
-    next
-  }: {
-    current: ActiveSelectionLocalBounds
-    next: ActiveSelectionLocalBounds
-  }): ActiveSelectionLocalBounds {
-    return {
-      bottom: Math.max(current.bottom, next.bottom),
-      left: Math.min(current.left, next.left),
-      right: Math.max(current.right, next.right),
-      top: Math.min(current.top, next.top)
-    }
-  }
-
-  /**
-   * Определяет вертикальную привязку shape-группы внутри active selection.
-   */
-  private _resolveVerticalAttachment({
-    selectionBounds,
-    shapeBounds
-  }: {
-    selectionBounds: ActiveSelectionLocalBounds
-    shapeBounds: ActiveSelectionLocalBounds
-  }): ActiveSelectionVerticalAttachment {
-    const topGap = Math.max(0, shapeBounds.top - selectionBounds.top)
-    const bottomGap = Math.max(0, selectionBounds.bottom - shapeBounds.bottom)
-    const isTopAttached = topGap <= SIZE_EPSILON
-    const isBottomAttached = bottomGap <= SIZE_EPSILON
-
-    if (isTopAttached && !isBottomAttached) return 'top'
-    if (isBottomAttached && !isTopAttached) return 'bottom'
-    if (Math.abs(topGap - bottomGap) <= SIZE_EPSILON) return 'center'
-
-    return topGap < bottomGap ? 'top' : 'bottom'
-  }
-
-  /**
-   * Переводит Fabric origin в числовое смещение относительно центра.
-   */
-  private _resolveOriginOffset({
-    origin
-  }: {
-    origin: ShapeTransformOriginX | ShapeTransformOriginY
-  }): number {
-    if (origin === 'left' || origin === 'top') return -0.5
-    if (origin === 'right' || origin === 'bottom') return 0.5
-    if (origin === 'center') return 0
-
-    return origin - 0.5
   }
 
   /**
@@ -1394,31 +1429,13 @@ export default class ShapeActiveSelectionScalingController {
       return
     }
 
-    if (verticalAttachment === 'top') {
-      group.setPositionByOrigin(
-        new Point(transformOriginPointX, bounds.top),
-        transformOriginX,
-        'top'
-      )
-
-      return
-    }
-
-    if (verticalAttachment === 'bottom') {
-      group.setPositionByOrigin(
-        new Point(transformOriginPointX, bounds.bottom),
-        transformOriginX,
-        'bottom'
-      )
-
-      return
-    }
-
-    group.setPositionByOrigin(
-      new Point(transformOriginPointX, (bounds.top + bounds.bottom) / 2),
+    positionActiveSelectionShape({
+      bounds,
+      group,
+      transformOriginPointX,
       transformOriginX,
-      'center'
-    )
+      verticalAttachment
+    })
   }
 
   /**

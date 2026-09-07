@@ -57,10 +57,12 @@ type ActiveSelectionMontageTextScaleSetup = Readonly<{
   scenePixel: number
 }>
 
-/** Сцена со смешанным выделением, которое пока остаётся на прежнем пути скейлинга. */
+/** Сцена с изображением, шейпом и отдельным текстом для общего скейлинга. */
 type ActiveSelectionMixedScaleSetup = Readonly<{
   imageId: string
   initial: SelectionCompositionSnapshot
+  montage: MontageAreaBoundsInfo
+  scenePixel: number
   shapeId: string
   textId: string
 }>
@@ -381,7 +383,7 @@ async function createMixedSelection({
   shapes,
   text
 }: ActiveSelectionMixedModels): Promise<ActiveSelectionMixedScaleSetup> {
-  const montage = await editorModel.getMontageAreaBounds()
+  const { montage, scenePixel } = await getActiveSelectionScaleScene({ editorModel })
   const image = images.checkCreation({
     imageObject: await images.addFilledImage({ width: 120, height: 90, withoutSelection: true })
   })
@@ -394,6 +396,7 @@ async function createMixedSelection({
         id: shapeId,
         left: montage.left + 75,
         top: montage.top + 95,
+        text: 'Текст шейпа',
         width: 105,
         height: 85,
         withoutSelection: true
@@ -421,7 +424,7 @@ async function createMixedSelection({
   expect(shape.id).toBe(shapeId)
   expect(textbox.id).toBe(textId)
 
-  return { imageId: image.id, initial, shapeId, textId }
+  return { imageId: image.id, initial, montage, scenePixel, shapeId, textId }
 }
 
 /** Рассчитывает четыре совместимые направляющие для одного пропорционального множителя. */

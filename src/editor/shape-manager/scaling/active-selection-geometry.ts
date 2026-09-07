@@ -2,10 +2,18 @@ import {
   Point,
   util,
   type ActiveSelection,
+  type FabricObject,
   type Transform
 } from 'fabric'
-import type { ShapeGroup } from '../types'
-import { SHAPE_SCALING_SCALE_EPSILON } from './shape-scaling-layout'
+import type {
+  ShapeGroup,
+  ShapeTransformOriginX,
+  ShapeTransformOriginY
+} from '../types'
+import {
+  SHAPE_SCALING_SCALE_EPSILON,
+  SHAPE_SCALING_SIZE_EPSILON
+} from './shape-scaling-layout'
 import {
   resolveShapeTransformOriginXValue,
   resolveShapeTransformOriginYValue
@@ -47,6 +55,17 @@ export type RotatedActiveSelectionShapeGeometry = Readonly<{
   angle: number
   center: Point
 }>
+
+/** Границы дочернего объекта в неизменяемой локальной плоскости общего выделения. */
+export type ActiveSelectionLocalBounds = Readonly<{
+  bottom: number
+  left: number
+  right: number
+  top: number
+}>
+
+/** Вертикальная привязка шейпа к исходной рамке общего выделения. */
+export type ActiveSelectionVerticalAttachment = 'top' | 'bottom' | 'center'
 
 /** Преобразование, которое остаётся на восстановленной рамке общего выделения. */
 export type ActiveSelectionTransformState = Readonly<{
@@ -160,6 +179,108 @@ export function applyRotatedActiveSelectionShapeGeometry({
 
   util.applyTransformToObject(group, localMatrix)
   group.setCoords()
+}
+
+/** Возвращает точные локальные границы прямого ребёнка общего выделения. */
+export function resolveActiveSelectionObjectLocalBounds({
+  target
+}: {
+  target: FabricObject
+}): ActiveSelectionLocalBounds {
+  const corners = [
+    target.getPositionByOrigin('left', 'top'),
+    target.getPositionByOrigin('right', 'top'),
+    target.getPositionByOrigin('right', 'bottom'),
+    target.getPositionByOrigin('left', 'bottom')
+  ]
+  const xCoordinates = corners.map(({ x }) => x)
+  const yCoordinates = corners.map(({ y }) => y)
+
+  return Object.freeze({
+    bottom: Math.max(...yCoordinates),
+    left: Math.min(...xCoordinates),
+    right: Math.max(...xCoordinates),
+    top: Math.min(...yCoordinates)
+  })
+}
+
+/** Объединяет локальные границы двух частей общего выделения. */
+export function mergeActiveSelectionLocalBounds({
+  current,
+  next
+}: {
+  current: ActiveSelectionLocalBounds
+  next: ActiveSelectionLocalBounds
+}): ActiveSelectionLocalBounds {
+  return Object.freeze({
+    bottom: Math.max(current.bottom, next.bottom),
+    left: Math.min(current.left, next.left),
+    right: Math.max(current.right, next.right),
+    top: Math.min(current.top, next.top)
+  })
+}
+
+/** Определяет ближайшую вертикальную привязку шейпа внутри исходной рамки. */
+export function resolveActiveSelectionVerticalAttachment({
+  selectionBounds,
+  shapeBounds
+}: {
+  selectionBounds: ActiveSelectionLocalBounds
+  shapeBounds: ActiveSelectionLocalBounds
+}): ActiveSelectionVerticalAttachment {
+  const topGap = Math.max(0, shapeBounds.top - selectionBounds.top)
+  const bottomGap = Math.max(0, selectionBounds.bottom - shapeBounds.bottom)
+  const isTopAttached = topGap <= SHAPE_SCALING_SIZE_EPSILON
+  const isBottomAttached = bottomGap <= SHAPE_SCALING_SIZE_EPSILON
+
+  if (isTopAttached && !isBottomAttached) return 'top'
+  if (isBottomAttached && !isTopAttached) return 'bottom'
+  if (Math.abs(topGap - bottomGap) <= SHAPE_SCALING_SIZE_EPSILON) return 'center'
+
+  return topGap < bottomGap ? 'top' : 'bottom'
+}
+
+/** Переводит точку привязки Fabric в числовое смещение относительно центра. */
+export function resolveActiveSelectionOriginOffset({
+  origin
+}: {
+  origin: ShapeTransformOriginX | ShapeTransformOriginY
+}): number {
+  if (origin === 'left' || origin === 'top') return -0.5
+  if (origin === 'right' || origin === 'bottom') return 0.5
+  if (origin === 'center') return 0
+
+  return origin - 0.5
+}
+
+/** Сохраняет исходную привязку неповёрнутого шейпа внутри временной рамки. */
+export function positionActiveSelectionShape({
+  bounds,
+  group,
+  transformOriginPointX,
+  transformOriginX,
+  verticalAttachment
+}: {
+  bounds: ActiveSelectionLocalBounds
+  group: ShapeGroup
+  transformOriginPointX: number
+  transformOriginX: ShapeTransformOriginX
+  verticalAttachment: ActiveSelectionVerticalAttachment
+}): void {
+  if (verticalAttachment === 'top') {
+    group.setPositionByOrigin(new Point(transformOriginPointX, bounds.top), transformOriginX, 'top')
+    return
+  }
+  if (verticalAttachment === 'bottom') {
+    group.setPositionByOrigin(new Point(transformOriginPointX, bounds.bottom), transformOriginX, 'bottom')
+    return
+  }
+
+  group.setPositionByOrigin(
+    new Point(transformOriginPointX, (bounds.top + bounds.bottom) / 2),
+    transformOriginX,
+    'center'
+  )
 }
 
 /** Применяет ограниченный масштаб к рамке и сохраняет неподвижную точку текущего жеста. */

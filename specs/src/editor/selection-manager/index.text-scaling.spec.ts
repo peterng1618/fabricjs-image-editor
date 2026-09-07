@@ -6,62 +6,46 @@ import { createSelectionTestSetup } from '../../../test-utils/managers/selection
 
 afterEach(jest.restoreAllMocks)
 
-it('фиксирует выделение из текстов внутри защищённой общей сессии', () => {
-  const beginCommitSpy = jest
-    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'beginTextSelectionCommit')
-    .mockReturnValue(true)
-  const finishCommitSpy = jest
-    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'finishTextSelectionCommit')
+it('передаёт фиксацию выделения с текстом единому владельцу рамки', () => {
+  const commitSpy = jest
+    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'commitTextDrivenSelectionScale')
     .mockReturnValue(true)
   const { editor } = createSelectionTestSetup()
   const manager = new SelectionManager({ editor })
   const selection = new ActiveSelection([new Rect(), new Rect()], { canvas: editor.canvas })
-  const commit = jest.fn()
 
-  expect(manager.commitTextSelectionScale({ selection, commit })).toBe(true)
-  expect(beginCommitSpy).toHaveBeenCalledWith({ selection })
-  expect(commit).toHaveBeenCalledTimes(1)
-  expect(finishCommitSpy).toHaveBeenCalledWith({ selection })
+  expect(manager.commitTextSelectionScale({ selection })).toBe(true)
+  expect(commitSpy).toHaveBeenCalledWith({ selection, transform: undefined })
 
   manager.destroy()
 })
 
 it('не запускает фиксацию для выделения без общей текстовой сессии', () => {
-  const beginCommitSpy = jest
-    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'beginTextSelectionCommit')
-    .mockReturnValue(false)
-  const finishCommitSpy = jest
-    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'finishTextSelectionCommit')
+  const commitSpy = jest
+    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'commitTextDrivenSelectionScale')
     .mockReturnValue(false)
   const { editor } = createSelectionTestSetup()
   const manager = new SelectionManager({ editor })
   const selection = new ActiveSelection([new Rect(), new Rect()], { canvas: editor.canvas })
-  const commit = jest.fn()
 
-  expect(manager.commitTextSelectionScale({ selection, commit })).toBe(false)
-  expect(beginCommitSpy).toHaveBeenCalledWith({ selection })
-  expect(commit).not.toHaveBeenCalled()
-  expect(finishCommitSpy).not.toHaveBeenCalled()
+  expect(manager.commitTextSelectionScale({ selection })).toBe(false)
+  expect(commitSpy).toHaveBeenCalledWith({ selection, transform: undefined })
 
   manager.destroy()
 })
 
 it('завершает защищённую сессию, если фиксация текста завершилась ошибкой', () => {
-  jest.spyOn(ActiveSelectionScaleInteractionController.prototype, 'beginTextSelectionCommit')
-    .mockReturnValue(true)
-  const finishCommitSpy = jest
-    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'finishTextSelectionCommit')
-    .mockReturnValue(true)
+  const commitSpy = jest
+    .spyOn(ActiveSelectionScaleInteractionController.prototype, 'commitTextDrivenSelectionScale')
+    .mockImplementation(() => {
+      throw new Error('Ошибка фиксации')
+    })
   const { editor } = createSelectionTestSetup()
   const manager = new SelectionManager({ editor })
   const selection = new ActiveSelection([new Rect(), new Rect()], { canvas: editor.canvas })
-  const commit = jest.fn(() => {
-    throw new Error('Ошибка фиксации')
-  })
 
-  expect(() => manager.commitTextSelectionScale({ selection, commit })).toThrow('Ошибка фиксации')
-  expect(commit).toHaveBeenCalledTimes(1)
-  expect(finishCommitSpy).toHaveBeenCalledWith({ selection })
+  expect(() => manager.commitTextSelectionScale({ selection })).toThrow('Ошибка фиксации')
+  expect(commitSpy).toHaveBeenCalledWith({ selection, transform: undefined })
 
   manager.destroy()
 })

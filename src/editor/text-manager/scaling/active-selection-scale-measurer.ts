@@ -23,6 +23,12 @@ import {
   type ScaleProjectionConstraint
 } from '../../snapping-manager/scaling/scale-projection'
 import type { ObjectBounds } from '../../utils/geometry'
+import type {
+  ActiveSelectionScaleDomainChildMeasurement,
+  ActiveSelectionScaleDomainMeasurement,
+  ActiveSelectionScaleDomainSource,
+  ActiveSelectionScaleFrame
+} from '../../selection-manager/scaling/active-selection-scale-domain-source'
 import type { EditorTextbox, TextScaleBaseState } from '../types'
 import {
   captureTextScaleBase,
@@ -39,6 +45,11 @@ import {
   createActiveSelectionTextScaleStepProjection,
   type ActiveSelectionTextScaleProjectionSample
 } from './active-selection-scale-projection'
+import {
+  captureActiveSelectionScaleLiveState,
+  restoreActiveSelectionScaleLiveState,
+  type ActiveSelectionScaleLiveState
+} from './active-selection-scale-live-state'
 
 /** Точка в неизменяемой локальной плоскости общего выделения. */
 type ActiveSelectionTextScalePoint = Readonly<{ x: number; y: number }>
@@ -58,21 +69,14 @@ export type ActiveSelectionAffineScaleChildMeasurement = Readonly<{
   target: FabricObject
 }>
 
-/** Измеренная рамка общего выделения в его исходной локальной плоскости. */
-type ActiveSelectionTextScaleFrame = Readonly<{
-  center: ActiveSelectionTextScalePoint
-  height: number
-  scaleX: number
-  scaleY: number
-  width: number
-}>
-
 /** Точная каноническая геометрия всех детей для одного набора множителей. */
 export type ActiveSelectionTextScaleMeasurement = Readonly<{
   affineChildren: readonly ActiveSelectionAffineScaleChildMeasurement[]
   bounds: ObjectBounds
   children: readonly ActiveSelectionTextScaleChildMeasurement[]
-  frame: ActiveSelectionTextScaleFrame
+  domainChildren: readonly ActiveSelectionScaleDomainChildMeasurement[]
+  domainMeasurement: ActiveSelectionScaleDomainMeasurement | null
+  frame: ActiveSelectionScaleFrame
   mode: RectangularScaleGestureMode
   multipliers: RectangularScaleMultipliers
   projection: ReturnType<typeof createActiveSelectionTextScaleStepProjection>
@@ -169,7 +173,7 @@ function createSelectionScaleFrame({
 }: {
   baseline: ActiveSelectionTextScaleBaseline
   bounds: ObjectBounds
-}): ActiveSelectionTextScaleFrame {
+}): ActiveSelectionScaleFrame {
   const width = bounds.right - bounds.left
   const height = bounds.bottom - bounds.top
 
@@ -194,7 +198,7 @@ function mergeBounds({ bounds }: { bounds: readonly ObjectBounds[] }): ObjectBou
   })
 }
 
-/** Переводит Fabric-origin в смещение относительно центра рамки. */
+/** Переводит точку привязки Fabric в смещение относительно центра рамки. */
 function resolveOriginOffset({ origin }: { origin: Transform['originX'] | Transform['originY'] }): number {
   if (origin === 'left' || origin === 'top') return -0.5
   if (origin === 'right' || origin === 'bottom') return 0.5
@@ -236,6 +240,29 @@ function resolveScaledChildCenter({
     x: fixedAnchor.x + ((startCenter.x - fixedAnchor.x) * multipliers.x),
     y: fixedAnchor.y + ((startCenter.y - fixedAnchor.y) * multipliers.y)
   })
+}
+
+/** Переносит измеренную доменную геометрию вместе с итоговой рамкой общего выделения. */
+function translateDomainChildren({
+  children,
+  translation
+}: {
+  children: readonly ActiveSelectionScaleDomainChildMeasurement[]
+  translation: ActiveSelectionTextScalePoint
+}): readonly ActiveSelectionScaleDomainChildMeasurement[] {
+  return Object.freeze(children.map(({ bounds, center, target }) => Object.freeze({
+    bounds: createBounds({
+      bottom: bounds.bottom + translation.y,
+      left: bounds.left + translation.x,
+      right: bounds.right + translation.x,
+      top: bounds.top + translation.y
+    }),
+    center: Object.freeze({
+      x: center.x + translation.x,
+      y: center.y + translation.y
+    }),
+    target
+  })))
 }
 
 /** Проецирует локальную рамку через исходный поворот и положение выделения. */
@@ -307,6 +334,9 @@ export default class ActiveSelectionTextScaleMeasurer {
   /** Менеджер холста, используемый при переносе рассчитанных размеров в свойства текста. */
   private readonly canvasManager: CanvasManager
 
+  /** Доменная геометрия детей, которые нельзя считать обычными линейными объектами. */
+  private readonly domainSource: ActiveSelectionScaleDomainSource | null
+
   /** Живые тексты и их независимые измерительные копии. */
   private readonly items: readonly ActiveSelectionTextScaleItem[]
 
@@ -331,14 +361,21 @@ export default class ActiveSelectionTextScaleMeasurer {
   /** Исходное преобразование Fabric. */
   private readonly transform: Transform
 
-  /** Последнее состояние, применённое к живым дочерним объектам. */
-  private lastAppliedMeasurement: ActiveSelectionTextScaleMeasurement | null = null
+  /** Последнее подтверждённое измерение текущего жеста. */
+  private lastConfirmedMeasurement: ActiveSelectionTextScaleMeasurement | null = null
+
+  /** Измерение, ожидающее подтверждения после общей проверки направляющих. */
+  private pendingMeasurement: ActiveSelectionTextScaleMeasurement | null = null
+
+  /** Прямой снимок живых объектов после последнего подтверждённого шага. */
+  private confirmedLiveState: ActiveSelectionScaleLiveState
 
   /** Создаёт измеритель от неизменяемого начала поддерживаемого жеста. */
   constructor({
     affineChildren = [],
     canvasManager,
     children,
+    domainSource = null,
     projection,
     selection,
     transform
@@ -346,16 +383,18 @@ export default class ActiveSelectionTextScaleMeasurer {
     affineChildren?: readonly FabricObject[]
     canvasManager: CanvasManager
     children: readonly EditorTextbox[]
+    domainSource?: ActiveSelectionScaleDomainSource | null
     projection: RectangularScaleGestureProjection
     selection: ActiveSelection
     transform: Transform
   }) {
     if (children.length < 1) throw new Error('Скейлинг состава с текстом требует хотя бы один текст')
-    if (children.length + affineChildren.length < 2) {
+    if (children.length + affineChildren.length + (domainSource?.targets.length ?? 0) < 2) {
       throw new Error('Скейлинг общего выделения требует минимум два объекта')
     }
 
     this.canvasManager = canvasManager
+    this.domainSource = domainSource
     this.selection = selection
     this.transform = transform
     this.projectionModes = createRectangularScaleProjectionModes({ projection })
@@ -363,6 +402,12 @@ export default class ActiveSelectionTextScaleMeasurer {
     this.items = Object.freeze(children.map((target) => this._createItem({ target })))
     this.affineItems = Object.freeze(affineChildren.map((target) => this._createAffineItem({ target })))
     this.minimums = this._resolveMinimumMultipliers()
+    this.confirmedLiveState = captureActiveSelectionScaleLiveState({
+      affineChildren,
+      selection,
+      texts: children,
+      transform
+    })
   }
 
   /** Возвращает точное каноническое состояние для текущих множителей указателя. */
@@ -373,7 +418,7 @@ export default class ActiveSelectionTextScaleMeasurer {
     mode: RectangularScaleGestureMode
     multipliers: RectangularScaleMultipliers
   }): ActiveSelectionTextScaleMeasurement {
-    const requestedMultipliers = this._clampMultipliers({ mode, multipliers })
+    const requestedMultipliers = this._resolveSupportedMultipliers({ mode, multipliers })
     const requestedValues = createRectangularScaleValues({ mode, multipliers: requestedMultipliers })
     const key = this._createMeasurementKey({ mode, values: requestedValues })
     const cached = this.pointerMeasurements.get(key)
@@ -409,9 +454,121 @@ export default class ActiveSelectionTextScaleMeasurer {
 
   /** Один раз переносит измеренное каноническое состояние в живые тексты и рамку. */
   public apply({ measurement }: { measurement: ActiveSelectionTextScaleMeasurement }): void {
-    const { frame } = measurement
-    const fixedAnchor = new Point(this.baseline.fixedAnchor.x, this.baseline.fixedAnchor.y)
+    try {
+      this._applyMeasurement({ measurement })
+      this.pendingMeasurement = measurement
+    } catch (error) {
+      try {
+        this._restoreConfirmedLiveState()
+      } catch {
+        // Ошибка применения остаётся основной после попытки вернуть всех владельцев геометрии.
+      }
+      throw error
+    }
+  }
 
+  /** Проверяет, было ли подтверждено хотя бы одно измеренное состояние. */
+  public hasConfirmedMeasurement(): boolean {
+    return this.lastConfirmedMeasurement !== null
+  }
+
+  /** Возвращает последнее подтверждённое состояние текущего жеста без повторного измерения. */
+  public getLastConfirmedMeasurement(): ActiveSelectionTextScaleMeasurement | null {
+    return this.lastConfirmedMeasurement
+  }
+
+  /** Продвигает ожидающее измерение после общей проверки фактической геометрии. */
+  public confirmAppliedMeasurement(): boolean {
+    const measurement = this.pendingMeasurement
+    if (!measurement) return false
+
+    const confirmedLiveState = this._captureCurrentLiveState()
+
+    if (measurement.domainMeasurement) {
+      if (!this.domainSource) throw new Error('Подтверждение доменной геометрии требует её источник')
+
+      this.domainSource.confirmAppliedState({ measurement: measurement.domainMeasurement })
+    }
+
+    this.confirmedLiveState = confirmedLiveState
+    this.lastConfirmedMeasurement = measurement
+    this.pendingMeasurement = null
+
+    return true
+  }
+
+  /** Восстанавливает последнее подтверждённое состояние или исходную геометрию жеста. */
+  public restoreConfirmedMeasurement(): boolean {
+    this._restoreConfirmedLiveState()
+    this.pendingMeasurement = null
+
+    return true
+  }
+
+  /** Освобождает измерительные тексты и кеш текущего жеста. */
+  public dispose(): void {
+    this.canonicalGeometries.clear()
+    this.canonicalMeasurements.clear()
+    this.pointerMeasurements.clear()
+    this.items.forEach(({ measurementTextbox }) => measurementTextbox.dispose())
+    this.lastConfirmedMeasurement = null
+    this.pendingMeasurement = null
+  }
+
+  /** Сохраняет текущую геометрию текстов, изображений, рамки и преобразования Fabric. */
+  private _captureCurrentLiveState(): ActiveSelectionScaleLiveState {
+    return captureActiveSelectionScaleLiveState({
+      affineChildren: this.affineItems.map(({ target }) => target),
+      selection: this.selection,
+      texts: this.items.map(({ target }) => target),
+      transform: this.transform
+    })
+  }
+
+  /** Синхронно возвращает всех владельцев геометрии к подтверждённому снимку. */
+  private _restoreConfirmedLiveState(): void {
+    let didFail = false
+    let firstFailure: unknown
+
+    try {
+      restoreActiveSelectionScaleLiveState({ state: this.confirmedLiveState })
+    } catch (error) {
+      didFail = true
+      firstFailure = error
+    }
+
+    try {
+      this.domainSource?.restoreConfirmedState()
+    } catch (error) {
+      if (!didFail) firstFailure = error
+      didFail = true
+    }
+
+    if (didFail) throw firstFailure
+  }
+
+  /** Применяет одно заранее проверенное измерение ко всем владельцам геометрии. */
+  private _applyMeasurement({
+    measurement
+  }: {
+    measurement: ActiveSelectionTextScaleMeasurement
+  }): void {
+    const { frame } = measurement
+
+    this._applySelectionFrame({ frame })
+    this._applyTextMeasurements({ measurement })
+    this._applyAffineMeasurements({ measurement })
+    this._applyDomainMeasurement({ measurement })
+
+    this.transform.scaleX = this.selection.scaleX
+    this.transform.scaleY = this.selection.scaleY
+    this.selection.setCoords()
+    this._assertAppliedMeasurement({ measurement })
+  }
+
+  /** Применяет рамку измерения относительно исходной неподвижной точки. */
+  private _applySelectionFrame({ frame }: { frame: ActiveSelectionScaleFrame }): void {
+    const fixedAnchor = new Point(this.baseline.fixedAnchor.x, this.baseline.fixedAnchor.y)
     this.selection.set({
       angle: this.baseline.angle,
       flipX: false,
@@ -424,7 +581,15 @@ export default class ActiveSelectionTextScaleMeasurer {
       width: this.baseline.width
     })
     this.selection.setPositionByOrigin(fixedAnchor, this.transform.originX, this.transform.originY)
+  }
 
+  /** Применяет каноническое состояние каждого отдельного текста. */
+  private _applyTextMeasurements({
+    measurement
+  }: {
+    measurement: ActiveSelectionTextScaleMeasurement
+  }): void {
+    const { frame } = measurement
     measurement.children.forEach((childMeasurement, index) => {
       const item = this.items[index]
       if (!item || item.target !== childMeasurement.target) {
@@ -438,7 +603,15 @@ export default class ActiveSelectionTextScaleMeasurer {
         mode: measurement.mode
       })
     })
+  }
 
+  /** Применяет линейную геометрию изображений внутри общего выделения. */
+  private _applyAffineMeasurements({
+    measurement
+  }: {
+    measurement: ActiveSelectionTextScaleMeasurement
+  }): void {
+    const { frame } = measurement
     measurement.affineChildren.forEach((childMeasurement, index) => {
       const item = this.affineItems[index]
       if (!item || item.target !== childMeasurement.target) {
@@ -447,41 +620,24 @@ export default class ActiveSelectionTextScaleMeasurer {
 
       this._applyAffineChildMeasurement({ childMeasurement, frame, item })
     })
-
-    this.transform.scaleX = this.selection.scaleX
-    this.transform.scaleY = this.selection.scaleY
-    this.selection.setCoords()
-    this._assertAppliedMeasurement({ measurement })
-    this.lastAppliedMeasurement = measurement
   }
 
-  /** Проверяет, было ли применено хотя бы одно измеренное состояние. */
-  public hasAppliedMeasurement(): boolean {
-    return this.lastAppliedMeasurement !== null
-  }
+  /** Передаёт рассчитанную геометрию шейпов их доменному владельцу. */
+  private _applyDomainMeasurement({
+    measurement
+  }: {
+    measurement: ActiveSelectionTextScaleMeasurement
+  }): void {
+    if (!measurement.domainMeasurement) return
+    if (!this.domainSource) {
+      throw new Error('Измеренная доменная геометрия должна иметь источник применения')
+    }
 
-  /** Возвращает последнее применённое состояние текущего жеста без повторного измерения. */
-  public getLastAppliedMeasurement(): ActiveSelectionTextScaleMeasurement | null {
-    return this.lastAppliedMeasurement
-  }
-
-  /** Восстанавливает последнее применённое состояние после предварительной мутации Fabric. */
-  public restoreAppliedMeasurement(): boolean {
-    const measurement = this.lastAppliedMeasurement
-    if (!measurement) return false
-
-    this.apply({ measurement })
-
-    return true
-  }
-
-  /** Освобождает измерительные тексты и кеш текущего жеста. */
-  public dispose(): void {
-    this.canonicalGeometries.clear()
-    this.canonicalMeasurements.clear()
-    this.pointerMeasurements.clear()
-    this.items.forEach(({ measurementTextbox }) => measurementTextbox.dispose())
-    this.lastAppliedMeasurement = null
+    this.domainSource.apply({
+      children: measurement.domainChildren,
+      frame: measurement.frame,
+      measurement: measurement.domainMeasurement
+    })
   }
 
   /** Сохраняет исходную рамку и переводит неподвижную точку в её локальную плоскость. */
@@ -569,8 +725,8 @@ export default class ActiveSelectionTextScaleMeasurer {
     return Object.freeze({ font, proportional, width })
   }
 
-  /** Ограничивает общий множитель минимальными размерами каждого текста. */
-  private _clampMultipliers({
+  /** Ограничивает множители минимальными размерами текстов и остальных доменных объектов. */
+  private _resolveSupportedMultipliers({
     mode,
     multipliers
   }: {
@@ -579,18 +735,69 @@ export default class ActiveSelectionTextScaleMeasurer {
   }): RectangularScaleMultipliers {
     if (mode === 'vertical') throw new Error('Вертикальные боковые ручки скрыты для выделения с текстами')
 
+    let resolved: RectangularScaleMultipliers
     if (mode === 'uniform') {
       const scale = Math.max(this.minimums.proportional, multipliers.x)
-      return Object.freeze({ x: scale, y: scale })
-    }
-    if (mode === 'horizontal') {
-      return Object.freeze({ x: Math.max(this.minimums.width, multipliers.x), y: 1 })
+      resolved = Object.freeze({ x: scale, y: scale })
+    } else if (mode === 'horizontal') {
+      resolved = Object.freeze({ x: Math.max(this.minimums.width, multipliers.x), y: 1 })
+    } else {
+      resolved = Object.freeze({
+        x: Math.max(this.minimums.width, multipliers.x),
+        y: Math.max(this.minimums.font, multipliers.y)
+      })
     }
 
-    return Object.freeze({
-      x: Math.max(this.minimums.width, multipliers.x),
-      y: Math.max(this.minimums.font, multipliers.y)
+    const domainMeasurement = this.domainSource?.measure({ mode, multipliers: resolved })
+    if (!domainMeasurement) return resolved
+
+    this._assertDomainMultipliers({ mode, requested: resolved, resolved: domainMeasurement.multipliers })
+
+    return domainMeasurement.multipliers
+  }
+
+  /** Проверяет, что доменный источник только усилил ограничения выбранного режима. */
+  private _assertDomainMultipliers({
+    mode,
+    requested,
+    resolved
+  }: {
+    mode: RectangularScaleGestureMode
+    requested: RectangularScaleMultipliers
+    resolved: RectangularScaleMultipliers
+  }): void {
+    if (![resolved.x, resolved.y].every(Number.isFinite) || Math.min(resolved.x, resolved.y) <= 0) {
+      throw new Error('Доменный источник должен вернуть положительные конечные множители')
+    }
+    if (resolved.x < requested.x - ACTIVE_SELECTION_TEXT_SCALE_MEASUREMENT_EPSILON
+      || resolved.y < requested.y - ACTIVE_SELECTION_TEXT_SCALE_MEASUREMENT_EPSILON) {
+      throw new Error('Доменный источник не должен ослаблять уже применённые ограничения текста')
+    }
+    if (mode === 'uniform' && !areNumbersNear({ first: resolved.x, second: resolved.y })) {
+      throw new Error('Пропорциональный скейлинг должен сохранить одинаковые множители')
+    }
+    if (mode === 'horizontal' && !areNumbersNear({ first: resolved.y, second: 1 })) {
+      throw new Error('Горизонтальный скейлинг не должен менять вертикальный множитель')
+    }
+  }
+
+  /** Проверяет порядок и принадлежность детей, измеренных доменным источником. */
+  private _assertDomainChildren({
+    measurement
+  }: {
+    measurement: ActiveSelectionScaleDomainMeasurement
+  }): void {
+    const sourceTargets = this.domainSource?.targets
+    if (!sourceTargets || sourceTargets.length !== measurement.children.length) {
+      throw new Error('Доменное измерение должно содержать все заявленные объекты')
+    }
+
+    const matchesSource = measurement.children.every(({ target }, index) => {
+      return target === sourceTargets[index]
     })
+    if (!matchesSource) {
+      throw new Error('Порядок доменных объектов должен совпадать с началом сессии')
+    }
   }
 
   /** Возвращает режим проекции текущей ручки. */
@@ -609,7 +816,7 @@ export default class ActiveSelectionTextScaleMeasurer {
     mode: RectangularScaleGestureMode
     multipliers: RectangularScaleMultipliers
   }): ActiveSelectionTextScaleMeasurement {
-    const appliedMultipliers = this._clampMultipliers({ mode, multipliers })
+    const appliedMultipliers = this._resolveSupportedMultipliers({ mode, multipliers })
     const values = createRectangularScaleValues({ mode, multipliers: appliedMultipliers })
     const key = this._createMeasurementKey({ mode, values })
     const cached = this.canonicalMeasurements.get(key)
@@ -772,7 +979,7 @@ export default class ActiveSelectionTextScaleMeasurer {
       effectiveValues: solution.values
     })
 
-    return this._clampMultipliers({ mode, multipliers })
+    return this._resolveSupportedMultipliers({ mode, multipliers })
   }
 
   /** Измеряет канонические тексты и итоговую рамку без изменения живого выделения. */
@@ -811,10 +1018,12 @@ export default class ActiveSelectionTextScaleMeasurer {
     const measuredAffineChildren = this.affineItems.map((item) => {
       return this._measureAffineChild({ item, multipliers })
     })
+    const domainMeasurement = this._measureDomainGeometry({ mode, multipliers })
     const merged = mergeBounds({
       bounds: [
         ...measuredChildren.map(({ bounds }) => bounds),
-        ...measuredAffineChildren.map(({ bounds }) => bounds)
+        ...measuredAffineChildren.map(({ bounds }) => bounds),
+        ...domainMeasurement?.children.map(({ bounds }) => bounds) ?? []
       ]
     })
     const translation = resolveFrameTranslation({
@@ -847,11 +1056,42 @@ export default class ActiveSelectionTextScaleMeasurer {
           y: child.center.y + translation.y
         })
       }))),
+      domainChildren: translateDomainChildren({
+        children: domainMeasurement?.children ?? [],
+        translation
+      }),
+      domainMeasurement,
       frame: createSelectionScaleFrame({ baseline: this.baseline, bounds: localBounds }),
       mode,
       multipliers,
       values: createRectangularScaleValues({ mode, multipliers })
     })
+  }
+
+  /** Измеряет и проверяет геометрию дополнительного домена для выбранных множителей. */
+  private _measureDomainGeometry({
+    mode,
+    multipliers
+  }: {
+    mode: RectangularScaleGestureMode
+    multipliers: RectangularScaleMultipliers
+  }): ActiveSelectionScaleDomainMeasurement | null {
+    const measurement = this.domainSource?.measure({ mode, multipliers }) ?? null
+    if (!measurement) return null
+
+    this._assertDomainChildren({ measurement })
+    this._assertDomainMultipliers({
+      mode,
+      requested: multipliers,
+      resolved: measurement.multipliers
+    })
+    const matchesRequested = areNumbersNear({ first: measurement.multipliers.x, second: multipliers.x })
+      && areNumbersNear({ first: measurement.multipliers.y, second: multipliers.y })
+    if (!matchesRequested) {
+      throw new Error('Доменная геометрия должна соответствовать уже выбранным множителям')
+    }
+
+    return measurement
   }
 
   /** Рассчитывает линейную геометрию нетекстового ребёнка от неизменяемого начала жеста. */
@@ -981,7 +1221,7 @@ export default class ActiveSelectionTextScaleMeasurer {
       })
       const sample = this._measureCanonicalGeometry({
         mode: geometry.mode,
-        multipliers: this._clampMultipliers({ mode: geometry.mode, multipliers })
+        multipliers: this._resolveSupportedMultipliers({ mode: geometry.mode, multipliers })
       })
       const changesGeometry = projectionMode.projection.edges.some(({ edge }) => {
         return !areNumbersNear({ first: sample.bounds[edge], second: geometry.bounds[edge] })
@@ -1001,7 +1241,7 @@ export default class ActiveSelectionTextScaleMeasurer {
     mode
   }: {
     childMeasurement: ActiveSelectionTextScaleChildMeasurement
-    frame: ActiveSelectionTextScaleFrame
+    frame: ActiveSelectionScaleFrame
     item: ActiveSelectionTextScaleItem
     mode: RectangularScaleGestureMode
   }): void {
@@ -1038,7 +1278,7 @@ export default class ActiveSelectionTextScaleMeasurer {
     item
   }: {
     childMeasurement: ActiveSelectionAffineScaleChildMeasurement
-    frame: ActiveSelectionTextScaleFrame
+    frame: ActiveSelectionScaleFrame
     item: ActiveSelectionAffineScaleItem
   }): void {
     this._applyChildFrameCompensation({
@@ -1059,7 +1299,7 @@ export default class ActiveSelectionTextScaleMeasurer {
     target
   }: {
     center: ActiveSelectionTextScalePoint
-    frame: ActiveSelectionTextScaleFrame
+    frame: ActiveSelectionScaleFrame
     scaleX: number
     scaleY: number
     target: FabricObject
@@ -1155,7 +1395,8 @@ export default class ActiveSelectionTextScaleMeasurer {
     const inverseBaseline = util.invertTransform(this.baseline.matrix)
     const targets = [
       ...measurement.children.map(({ target }) => target),
-      ...measurement.affineChildren.map(({ target }) => target)
+      ...measurement.affineChildren.map(({ target }) => target),
+      ...measurement.domainChildren.map(({ target }) => target)
     ]
     const points = targets.flatMap((target) => {
       return target.getCoords().map((point) => point.transform(inverseBaseline))

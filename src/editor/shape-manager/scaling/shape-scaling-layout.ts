@@ -3,6 +3,7 @@ import {
   applyFixedWidthShapeTextLayout,
   applyShapeTextLayout,
   measureShapeTextFrameLayout,
+  resolveMinimumShapeWidthForText,
   resolveShapeTextFixedWidthLayout,
   resolveRequiredShapeHeightForText
 } from '../layout/shape-layout'
@@ -80,6 +81,37 @@ export type ShapeScalingCommitDimensions = {
   hasWidthChange: boolean
   hasDimensionChange: boolean
 }
+
+/** Ограничения текущего шага скейлинга после проверки размеров и текста. */
+export type ShapeScalingConstraintState = Readonly<{
+  shouldHandleAsNoop: boolean
+  shouldRestoreLastAllowedTransform: boolean
+  clampedScaleX: number | null
+  clampedScaleY: number | null
+  resolvedMinimumHeight: number | null
+}>
+
+/** Входные данные для общей проверки ограничений текущего шага. */
+type ShapeScalingConstraintParams = Readonly<{
+  group: ShapeGroup
+  text: ShapeTextNode
+  constraintPadding: ShapePadding
+  state: ShapeScalingState
+  scaleX: number
+  scaleY: number
+}>
+
+/** Измеренные размеры и режимы, по которым выбирается итоговое ограничение. */
+type ShapeScalingConstraintAttempt = Readonly<{
+  attemptedHeight: number
+  attemptedWidth: number
+  isShrinkingX: boolean
+  isShrinkingY: boolean
+  minimumHeight: number | null
+  minimumWidth: number | null
+  shouldHandleAsNoop: boolean
+  shouldValidateProportionalConstraint: boolean
+}>
 
 /**
  * Manual base размеры, которые сохраняются после commit скейлинга.
@@ -497,6 +529,172 @@ export function resolveMinimumTextFitHeight({
         height: nextHeight
       })
     }
+  })
+}
+
+/** Измеряет размеры и минимальные ограничения текущей попытки скейлинга. */
+function resolveShapeScalingConstraintAttempt({
+  group,
+  text,
+  constraintPadding,
+  state,
+  scaleX,
+  scaleY
+}: ShapeScalingConstraintParams): ShapeScalingConstraintAttempt {
+  const attemptedWidth = state.canScaleWidth
+    ? Math.max(SHAPE_SCALING_MIN_SIZE, state.startWidth * scaleX)
+    : state.startWidth
+  const attemptedHeight = state.canScaleHeight
+    ? Math.max(SHAPE_SCALING_MIN_SIZE, state.startHeight * scaleY)
+    : state.startHeight
+  const isShrinkingX = scaleX < state.lastAllowedScaleX - SHAPE_SCALING_SCALE_EPSILON
+  const isShrinkingY = scaleY < state.lastAllowedScaleY - SHAPE_SCALING_SCALE_EPSILON
+  const isVerticalOnlyScale = state.canScaleHeight && !state.canScaleWidth
+  const minimumWidth = state.canScaleWidth && isShrinkingX
+    ? resolveMinimumShapeWidthForText({
+      text,
+      padding: constraintPadding,
+      measurementCache: state.previewTextMeasurementCache ?? undefined,
+      resolvePaddingForWidth: ({ width }) => resolveShapeScalingConstraintPadding({
+        group,
+        width,
+        height: attemptedHeight
+      })
+    })
+    : null
+  const minimumHeight = state.canScaleHeight && isShrinkingY
+    ? (isVerticalOnlyScale ? state.fixedWidthMinimumTextFitHeight : null)
+      ?? resolveMinimumTextFitHeight({
+        group,
+        text,
+        width: attemptedWidth,
+        padding: constraintPadding,
+        measurementCache: state.previewTextMeasurementCache
+      })
+    : null
+
+  return {
+    attemptedHeight,
+    attemptedWidth,
+    isShrinkingX,
+    isShrinkingY,
+    minimumHeight,
+    minimumWidth,
+    shouldHandleAsNoop: isVerticalOnlyScale
+      && state.cannotScaleDownAtStart
+      && scaleY < state.startScaleY - SHAPE_SCALING_SCALE_EPSILON,
+    shouldValidateProportionalConstraint: state.isProportionalScaling
+      && state.canScaleWidth
+      && state.canScaleHeight
+      && (isShrinkingX || isShrinkingY)
+  }
+}
+
+/** Проверяет текст при пропорциональном уменьшении и возвращает общий предел масштаба. */
+function resolveProportionalScalingConstraint({
+  attempt,
+  group,
+  state,
+  text
+}: {
+  attempt: ShapeScalingConstraintAttempt
+  group: ShapeGroup
+  state: ShapeScalingState
+  text: ShapeTextNode
+}): ShapeScalingConstraintState | null {
+  if (!attempt.shouldValidateProportionalConstraint) return null
+
+  const candidate = validateShapeTextLayoutForProportionalScaling({
+    group,
+    text,
+    width: attempt.attemptedWidth,
+    height: attempt.attemptedHeight,
+    measurementCache: state.previewTextMeasurementCache,
+    constraintCache: state.proportionalTextConstraintCache
+  })
+  if (candidate.isValid) {
+    return {
+      shouldHandleAsNoop: attempt.shouldHandleAsNoop,
+      shouldRestoreLastAllowedTransform: state.crossedOppositeCorner,
+      clampedScaleX: null,
+      clampedScaleY: null,
+      resolvedMinimumHeight: null
+    }
+  }
+
+  const minimum = resolveMinimumProportionalShapeScale({ group, text, state })
+
+  return {
+    shouldHandleAsNoop: attempt.shouldHandleAsNoop,
+    shouldRestoreLastAllowedTransform: state.crossedOppositeCorner,
+    clampedScaleX: minimum.scale,
+    clampedScaleY: minimum.scale,
+    resolvedMinimumHeight: minimum.minimumHeight
+  }
+}
+
+/** Ограничивает независимые оси по рассчитанным минимальным размерам. */
+function resolveAxisScalingConstraint({
+  attempt,
+  group,
+  state,
+  text
+}: {
+  attempt: ShapeScalingConstraintAttempt
+  group: ShapeGroup
+  state: ShapeScalingState
+  text: ShapeTextNode
+}): ShapeScalingConstraintState {
+  const hasWidthViolation = attempt.minimumWidth !== null
+    && attempt.attemptedWidth < attempt.minimumWidth + SHAPE_SCALING_SCALE_EPSILON
+  const hasHeightViolation = attempt.minimumHeight !== null
+    && attempt.attemptedHeight < attempt.minimumHeight + SHAPE_SCALING_SCALE_EPSILON
+
+  if (state.isProportionalScaling && (hasWidthViolation || hasHeightViolation)) {
+    const minimum = resolveMinimumProportionalShapeScale({ group, text, state })
+
+    return {
+      shouldHandleAsNoop: attempt.shouldHandleAsNoop,
+      shouldRestoreLastAllowedTransform: state.crossedOppositeCorner,
+      clampedScaleX: minimum.scale,
+      clampedScaleY: minimum.scale,
+      resolvedMinimumHeight: minimum.minimumHeight
+    }
+  }
+
+  const minimumScaleX = attempt.minimumWidth === null || !hasWidthViolation
+    ? null
+    : Math.max(SHAPE_SCALING_MIN_SIZE / state.startWidth, attempt.minimumWidth / state.startWidth)
+  const minimumScaleY = attempt.minimumHeight === null || !hasHeightViolation
+    ? null
+    : Math.max(SHAPE_SCALING_MIN_SIZE / state.startHeight, attempt.minimumHeight / state.startHeight)
+
+  return {
+    shouldHandleAsNoop: attempt.shouldHandleAsNoop,
+    shouldRestoreLastAllowedTransform: state.crossedOppositeCorner,
+    clampedScaleX: minimumScaleX,
+    clampedScaleY: minimumScaleY,
+    resolvedMinimumHeight: attempt.minimumHeight
+  }
+}
+
+/** Возвращает ограничения размеров и текста для одного шага скейлинга шейпа. */
+export function resolveShapeScalingConstraintState(
+  params: ShapeScalingConstraintParams
+): ShapeScalingConstraintState {
+  const attempt = resolveShapeScalingConstraintAttempt(params)
+  const proportional = resolveProportionalScalingConstraint({
+    attempt,
+    group: params.group,
+    state: params.state,
+    text: params.text
+  })
+
+  return proportional ?? resolveAxisScalingConstraint({
+    attempt,
+    group: params.group,
+    state: params.state,
+    text: params.text
   })
 }
 

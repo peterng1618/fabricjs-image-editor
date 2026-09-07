@@ -104,6 +104,7 @@ it('при пропорциональном скейлинге сохраняе�
   expect(pointerMeasurement.values).not.toEqual(acquiredMeasurement.values)
 
   measurer.apply({ measurement: acquiredMeasurement })
+  expect(measurer.confirmAppliedMeasurement()).toBe(true)
   const resolved = resolveActiveSelectionTextScaleStep({
     measurer,
     mode: 'uniform',

@@ -10,10 +10,22 @@ import type {
   ShapeTransformOriginX,
   ShapeTransformOriginY
 } from '../types'
+import type { ShapeScaleDirection } from './shape-scaling-types'
 
 type ShapeTransformOriginalNumberKey = 'left' | 'top' | 'scaleX' | 'scaleY'
 
 type ShapeScalingPointerEvent = Event | MouseEvent | PointerEvent | TouchEvent
+
+/** Преобразует числовой знак в направление скейлинга. */
+export function resolveShapeScaleDirection({
+  value
+}: {
+  value: unknown
+}): ShapeScaleDirection | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) return null
+
+  return value > 0 ? 1 : -1
+}
 
 /**
  * Возвращает числовое значение из transform.original, если оно доступно.

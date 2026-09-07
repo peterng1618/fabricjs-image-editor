@@ -26,8 +26,20 @@ import {
   type ScaleSnapCandidateSource,
   type ScaleSnapEnvironment
 } from './scaling/scale-snap-candidates'
-import type { VerifiedScaleGuide } from './scaling/scale-snapping-resolver'
+import {
+  createScaleGestureBaseline,
+  type VerifiedScaleGuide
+} from './scaling/scale-snapping-resolver'
+import { ScaleSnappingRuntime } from './scaling/scale-snapping-runtime'
 import type { ScaleSceneEdge } from './scaling/scale-projection'
+import {
+  createRectangularScaleGestureProjection,
+  createRectangularScaleProjectionModes,
+  resolveRectangularScaleMovingEdges,
+  type RectangularScaleGestureProjection,
+  type RectangularScaleGestureTransform,
+  type RectangularScalePoint
+} from './scaling/rectangular-scale-gesture-projection'
 import { ImageScaleSnappingController, type ImageScaleStepResult } from './scaling/image-scale-snapping-controller'
 import { MovementSnappingController } from './movement/movement-snapping-controller'
 import {
@@ -61,13 +73,13 @@ import type {
 import { buildSpacingPatterns } from './movement/spacing-patterns'
 import { pushBoundsToAnchors } from './guides/anchor-buckets'
 import {
+  SnapTargetResolver,
+  type SnapTargetBoundsMode
+} from './guides/snap-target-resolver'
+import {
   getObjectBounds,
   getObjectExactBounds
 } from '../utils/geometry'
-import {
-  collectExcludedObjects,
-  shouldIgnoreObject
-} from '../utils/object-filter'
 
 type TransformEvent = BasicTransformEvent<TPointerEvent> & {
   target?: FabricObject | null
@@ -78,17 +90,16 @@ type MouseEventInfo = TPointerEventInfo<TPointerEvent> & {
   target?: FabricObject | null
 }
 
+/** Начальная проекция и runtime одной прямоугольной scale-сессии. */
+type RectangularScaleSnappingSession = Readonly<{
+  projection: RectangularScaleGestureProjection
+  runtime: ScaleSnappingRuntime
+}>
+
 /** Событие canvas с объектом, который мог участвовать в активной сессии. */
 type ObjectTargetEvent = {
   target?: FabricObject | null
 }
-
-type CropFrameSnapTarget = FabricObject & {
-  cropSource?: FabricObject | null
-}
-
-/** Способ расчёта границ в текущем кеше целей прилипания. */
-type AnchorBoundsMode = 'exact' | 'rounded'
 
 /** Оси, по которым текущий шаг перемещения может использовать прилипание. */
 type MovementSnapAxisState = {
@@ -183,7 +194,7 @@ export default class SnappingManager {
   private anchors: AnchorBuckets = { vertical: [], horizontal: [] }
 
   /** Способ расчёта границ в текущем кеше целей. */
-  private anchorBoundsMode: AnchorBoundsMode | null = null
+  private anchorBoundsMode: SnapTargetBoundsMode | null = null
 
   /**
    * Кешированные интервалы между объектами.
@@ -229,6 +240,9 @@ export default class SnappingManager {
 
   /** Управляет общей сессией прилипания при скейлинге изображений. */
   private readonly imageScaleSnappingController: ImageScaleSnappingController
+
+  /** Выбирает доступные цели прилипания и рассчитывает их границы. */
+  private readonly snapTargetResolver: SnapTargetResolver
 
   /**
    * Обработчик начала перетаскивания объекта.
@@ -278,6 +292,7 @@ export default class SnappingManager {
     this.canvas = canvas
     this.movementSnappingController = new MovementSnappingController({ editor })
     this.imageScaleSnappingController = new ImageScaleSnappingController({ editor })
+    this.snapTargetResolver = new SnapTargetResolver({ canvas })
 
     this._onMouseDown = this._handleMouseDown.bind(this)
     this._onMouseMove = this._handleMouseMove.bind(this)
@@ -311,15 +326,11 @@ export default class SnappingManager {
     targetEdges: readonly ScaleSceneEdge[]
   }): ScaleSnapEnvironment {
     const sources: ScaleSnapCandidateSource[] = []
-    const targets = this._collectTargets({ activeObject })
+    const targets = this.snapTargetResolver.resolve({ activeObject, mode: 'exact' })
 
-    for (let index = 0; index < targets.length; index += 1) {
-      const object = targets[index]
-      const bounds = getObjectExactBounds({ object })
-      if (!bounds) continue
-
+    for (const { bounds, object, snapshotIndex } of targets) {
       sources.push({
-        id: `object:${index}:${object.id ?? object.type}`,
+        id: `object:${snapshotIndex}:${object.id ?? object.type}`,
         bounds
       })
     }
@@ -337,6 +348,36 @@ export default class SnappingManager {
       candidates: createScaleSnapCandidates({ targetEdges, sources }),
       zoom: this.canvas.getZoom() || 1
     })
+  }
+
+  /** Создаёт исходную проекцию и запускает общий расчёт прилипания для прямоугольного скейлинга. */
+  public startRectangularScaleSnappingSession({
+    pointerStart,
+    transform
+  }: {
+    pointerStart: RectangularScalePoint
+    transform: RectangularScaleGestureTransform
+  }): RectangularScaleSnappingSession | null {
+    transform.target.setCoords()
+    const projection = createRectangularScaleGestureProjection({ pointerStart, transform })
+    if (!projection) return null
+
+    const projectionModes = createRectangularScaleProjectionModes({ projection })
+    const environment = this.captureScaleSnapEnvironment({
+      activeObject: transform.target,
+      targetEdges: resolveRectangularScaleMovingEdges({ projectionModes })
+    })
+    const baseline = createScaleGestureBaseline({
+      bounds: projection.baselineBounds,
+      fixedAnchor: projection.fixedAnchor,
+      projectionModes,
+      candidates: environment.candidates,
+      zoom: environment.zoom
+    })
+    const runtime = new ScaleSnappingRuntime()
+    runtime.startSession({ baseline })
+
+    return Object.freeze({ projection, runtime })
   }
 
   /**
@@ -543,10 +584,11 @@ export default class SnappingManager {
       canSnapX,
       canSnapY
     })
-    const candidateBounds = this._resolveCurrentTargetBounds({
+    const candidateTargets = this.snapTargetResolver.resolve({
       activeObject: target,
       mode: 'exact'
     })
+    const candidateBounds = candidateTargets.map(({ bounds }) => bounds)
     const spacingResult = this._calculateSpacingResult({
       activeBounds: guideSnap.activeBounds,
       candidateBounds,
@@ -1355,7 +1397,7 @@ export default class SnappingManager {
     mode
   }: {
     activeObject: FabricObject
-    mode: AnchorBoundsMode
+    mode: SnapTargetBoundsMode
   }): void {
     const hasAnchors = Boolean(this.anchors.vertical.length || this.anchors.horizontal.length)
     if (hasAnchors && this.anchorBoundsMode === mode) return
@@ -1371,19 +1413,13 @@ export default class SnappingManager {
     mode
   }: {
     activeObject?: FabricObject | null
-    mode: AnchorBoundsMode
+    mode: SnapTargetBoundsMode
   }): void {
-    const targets = this._collectTargets({ activeObject })
+    const targets = this.snapTargetResolver.resolve({ activeObject, mode })
     const nextAnchors: AnchorBuckets = { vertical: [], horizontal: [] }
     const targetBounds: Bounds[] = []
 
-    for (const object of targets) {
-      const bounds = this._getTargetBounds({
-        object,
-        activeObject,
-        mode
-      })
-      if (!bounds) continue
+    for (const { bounds } of targets) {
       pushBoundsToAnchors({ anchors: nextAnchors, bounds })
       targetBounds.push(bounds)
     }
@@ -1410,86 +1446,5 @@ export default class SnappingManager {
     this.anchorBoundsMode = mode
     this.spacingPatterns = buildSpacingPatterns({ bounds: targetBounds })
     this.cachedTargetBounds = targetBounds
-  }
-
-  /**
-   * Собирает объекты, подходящие для прилипания, исключая активный объект и запрещённые id.
-   */
-  private _collectTargets({ activeObject }: { activeObject?: FabricObject | null }): FabricObject[] {
-    const excluded = collectExcludedObjects({ activeObject })
-    const targets: FabricObject[] = []
-
-    this.canvas.forEachObject((object) => {
-      if (shouldIgnoreObject({ object, excluded })) return
-      targets.push(object)
-    })
-
-    return targets
-  }
-
-  /**
-   * Возвращает актуальные границы объектов-целей для расчёта равноудалённого прилипания.
-   */
-  private _resolveCurrentTargetBounds({
-    activeObject,
-    mode
-  }: {
-    activeObject: FabricObject
-    mode: AnchorBoundsMode
-  }): Bounds[] {
-    const targets = this._collectTargets({ activeObject })
-    const boundsList: Bounds[] = []
-
-    for (const object of targets) {
-      const bounds = this._getTargetBounds({
-        object,
-        activeObject,
-        mode
-      })
-      if (!bounds) continue
-
-      boundsList.push(bounds)
-    }
-
-    return boundsList
-  }
-
-  /**
-   * Возвращает актуальные границы цели прилипания.
-   */
-  private _getTargetBounds({
-    object,
-    activeObject,
-    mode
-  }: {
-    object: FabricObject
-    activeObject?: FabricObject | null
-    mode: AnchorBoundsMode
-  }): Bounds | null {
-    if (mode === 'exact') return getObjectExactBounds({ object })
-
-    if (this._isActiveCropSource({
-      object,
-      activeObject
-    })) {
-      return getObjectExactBounds({ object })
-    }
-
-    return getObjectBounds({ object })
-  }
-
-  /**
-   * Возвращает true, если object является source активного crop frame.
-   */
-  private _isActiveCropSource({
-    object,
-    activeObject
-  }: {
-    object: FabricObject
-    activeObject?: FabricObject | null
-  }): boolean {
-    const cropTarget = activeObject as CropFrameSnapTarget | null | undefined
-
-    return cropTarget?.cropSource === object
   }
 }

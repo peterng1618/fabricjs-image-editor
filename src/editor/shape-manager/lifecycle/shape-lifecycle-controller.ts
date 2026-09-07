@@ -294,9 +294,7 @@ export default class ShapeLifecycleController {
     this.pendingResizeUpdates.delete(group)
   }
 
-  /**
-   * Завершает lifecycle ресайза shape после commit геометрии.
-   */
+  /** Завершает изменение размера шейпа по его текущему состоянию на холсте. */
   public finishResize({
     group
   }: {

@@ -148,6 +148,21 @@ export class Rect {
     return new Point(x, y)
   }
 
+  /** Возвращает положение точки привязки по актуальному контракту FabricObject. */
+  getPositionByOrigin(originX: 'left' | 'center' | 'right', originY: 'top' | 'center' | 'bottom') {
+    return this.getPointByOrigin(originX, originY)
+  }
+
+  /** Возвращает углы видимой рамки прямоугольника в координатах canvas. */
+  getCoords() {
+    return [
+      this.getPointByOrigin('left', 'top'),
+      this.getPointByOrigin('right', 'top'),
+      this.getPointByOrigin('right', 'bottom'),
+      this.getPointByOrigin('left', 'bottom')
+    ]
+  }
+
   setPositionByOrigin(
     point: { x: number; y: number },
     originX: 'left' | 'center' | 'right',
@@ -234,11 +249,40 @@ export class ActiveSelection {
 
   constructor(objects: any[], public options: any = {}) {
     this.objects = objects || []
+    this.objects.forEach((object) => {
+      if (object && typeof object === 'object') object.group = this
+    })
     Object.assign(this, options)
   }
 
   getObjects() {
     return this.objects
+  }
+
+  /** Добавляет объекты в тестовое выделение и восстанавливает их принадлежность рамке. */
+  add(...objects: any[]) {
+    objects.forEach((object) => {
+      if (!object || typeof object !== 'object') return
+
+      if (object.group && object.group !== this && typeof object.group.remove === 'function') {
+        object.group.remove(object)
+      }
+      if (!this.objects.includes(object)) this.objects.push(object)
+      object.group = this
+    })
+
+    return this.objects.length
+  }
+
+  /** Снимает тестовую рамку и возвращает её объекты в верхний уровень холста. */
+  removeAll() {
+    const objects = [...this.objects]
+    this.objects = []
+    objects.forEach((object) => {
+      if (object && typeof object === 'object' && object.group === this) object.group = undefined
+    })
+
+    return objects
   }
 
   forEachObject(callback: (obj: any) => void) {
@@ -248,6 +292,11 @@ export class ActiveSelection {
   /** Возвращает матрицу самого тестового выделения. */
   calcOwnMatrix() {
     return [1, 0, 0, 1, this.left, this.top]
+  }
+
+  /** Возвращает полную матрицу верхнеуровневого тестового выделения. */
+  calcTransformMatrix() {
+    return this.calcOwnMatrix()
   }
 
   set(key: string | Record<string, any>, value?: any) {
@@ -261,6 +310,31 @@ export class ActiveSelection {
   /** Возвращает центр тестового общего выделения. */
   getCenterPoint() {
     return new Point(this.left, this.top)
+  }
+
+  /** Возвращает точку привязки относительно центра тестового выделения. */
+  getPointByOrigin(
+    originX: 'left' | 'center' | 'right' | number,
+    originY: 'top' | 'center' | 'bottom' | number
+  ) {
+    const width = ((this as any).width ?? 0) * ((this as any).scaleX ?? 1)
+    const height = ((this as any).height ?? 0) * ((this as any).scaleY ?? 1)
+    const xFactor = typeof originX === 'number'
+      ? originX
+      : ({ left: -0.5, center: 0, right: 0.5 } as const)[originX]
+    const yFactor = typeof originY === 'number'
+      ? originY
+      : ({ top: -0.5, center: 0, bottom: 0.5 } as const)[originY]
+
+    return new Point(this.left + (width * xFactor), this.top + (height * yFactor))
+  }
+
+  /** Возвращает положение точки привязки через установленную геометрию тестового выделения. */
+  getPositionByOrigin(
+    originX: 'left' | 'center' | 'right' | number,
+    originY: 'top' | 'center' | 'bottom' | number
+  ) {
+    return this.getPointByOrigin(originX, originY)
   }
 
   /** Устанавливает положение тестового общего выделения относительно переданного origin. */
@@ -444,6 +518,21 @@ export class Group {
     return new Point(x, y)
   }
 
+  /** Возвращает положение точки привязки по актуальному контракту FabricObject. */
+  getPositionByOrigin(originX: 'left' | 'center' | 'right', originY: 'top' | 'center' | 'bottom') {
+    return this.getPointByOrigin(originX, originY)
+  }
+
+  /** Возвращает углы видимой рамки группы в координатах canvas. */
+  getCoords() {
+    return [
+      this.getPointByOrigin('left', 'top'),
+      this.getPointByOrigin('right', 'top'),
+      this.getPointByOrigin('right', 'bottom'),
+      this.getPointByOrigin('left', 'bottom')
+    ]
+  }
+
   setPositionByOrigin(
     point: { x: number; y: number },
     originX: 'left' | 'center' | 'right',
@@ -605,6 +694,24 @@ export class FabricObject {
     return new Point(x, y)
   }
 
+  /** Возвращает положение точки привязки по актуальному контракту FabricObject. */
+  public getPositionByOrigin(
+    originX: 'left' | 'center' | 'right',
+    originY: 'top' | 'center' | 'bottom'
+  ) {
+    return this.getPointByOrigin(originX, originY)
+  }
+
+  /** Возвращает углы видимой рамки объекта в координатах canvas. */
+  public getCoords() {
+    return [
+      this.getPointByOrigin('left', 'top'),
+      this.getPointByOrigin('right', 'top'),
+      this.getPointByOrigin('right', 'bottom'),
+      this.getPointByOrigin('left', 'bottom')
+    ]
+  }
+
   /**
    * Устанавливает позицию объекта по заданному origin.
    */
@@ -648,6 +755,41 @@ export class FabricObject {
     const height = options.height ?? 0
     const PointCtor = (this as any).Point || Point
     return new PointCtor(width, height)
+  }
+}
+
+/** Сохраняет геометрический контракт FabricObject для изображений в unit-тестах. */
+export class FabricImage extends FabricObject {
+  type = 'image'
+
+  private element?: HTMLImageElement | HTMLCanvasElement
+
+  constructor(elementOrOptions: any = {}, options: any = {}) {
+    const hasElement = elementOrOptions instanceof HTMLImageElement
+      || elementOrOptions instanceof HTMLCanvasElement
+
+    super(hasElement ? options : elementOrOptions)
+    if (hasElement) this.element = elementOrOptions
+  }
+
+  /** Возвращает исходный элемент изображения или создаёт его из src. */
+  public getElement(): HTMLImageElement | HTMLCanvasElement {
+    if (this.element) return this.element
+
+    const image = new Image()
+    const source = Reflect.get(this, 'src')
+    image.src = typeof source === 'string' ? source : ''
+
+    return image
+  }
+
+  /** Создаёт тестовое изображение по тому же асинхронному контракту, что и Fabric. */
+  public static fromURL(url: string, options?: any): Promise<FabricImage> {
+    return Promise.resolve(new FabricImage({
+      src: url,
+      type: 'image',
+      ...options
+    }))
   }
 }
 
@@ -1037,39 +1179,6 @@ export class Gradient {
     this.coords = options.coords || {}
     this.colorStops = options.colorStops || []
     Object.assign(this, options)
-  }
-}
-
-export class FabricImage {
-  type = 'image'
-
-  constructor(public options: any = {}) {
-    Object.assign(this, options)
-  }
-
-  set(key: string | Record<string, any>, value?: any) {
-    if (typeof key === 'string') {
-      (this as any)[key] = value
-      return
-    }
-    Object.assign(this, key)
-  }
-
-  getElement(): HTMLImageElement | HTMLCanvasElement {
-    const element = (this as any).element
-    if (element) return element
-
-    const img = new Image()
-    img.src = (this as any).src || ''
-    return img
-  }
-
-  static fromURL(url: string, options?: any): Promise<FabricImage> {
-    return Promise.resolve(new FabricImage({
-      src: url,
-      type: 'image',
-      ...options
-    }))
   }
 }
 

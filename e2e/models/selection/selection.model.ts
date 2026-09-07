@@ -5,11 +5,13 @@ import type {
   SelectionCompositionChildSnapshot,
   SelectionCompositionSnapshot,
   SelectionImageTextCompositionSnapshot,
+  SelectionMixedCompositionSnapshot,
   SelectionTextCompositionSnapshot,
+  ShapeScaleSnapshot,
+  ShapeTextInfo,
   SnappingObjectSnapshot,
   TextResizeSnapshot
 } from '../../types'
-import type { ShapeTextInfo } from '../../types/shape.types'
 import { waitForCanvasRender } from '../../helpers/canvas-render.helper'
 import type { ShapeModel } from '../shape/shape.model'
 import { SelectionScalingSession } from './selection-scaling-session'
@@ -75,6 +77,21 @@ type SelectionImageTextCompositionParams = {
   textIds: string[]
 }
 
+/** Браузерный снимок полного смешанного состава до добавления видимой геометрии. */
+type SelectionMixedCompositionSource = {
+  images: SelectionCompositionChildSnapshot[]
+  selection: SnappingObjectSnapshot
+  shapes: Array<{ snapshot: ShapeScaleSnapshot; text: ShapeTextInfo }>
+  texts: TextResizeSnapshot[]
+}
+
+/** Идентификаторы ожидаемых объектов полного смешанного состава. */
+type SelectionMixedCompositionParams = {
+  imageIds: string[]
+  shapeIds: string[]
+  textIds: string[]
+}
+
 /** Читает браузерное состояние выделения из ожидаемых изображений и текстов. */
 function readImageTextCompositionSource({
   imageIds,
@@ -116,6 +133,49 @@ function readImageTextCompositionSource({
     selection: helpers.serializeSnappingObjectSnapshot(selection),
     images: imageSnapshots,
     texts: textSnapshots
+  }
+}
+
+/** Читает каноническое состояние изображения, шейпа и отдельного текста из одной рамки. */
+function readMixedCompositionSource({
+  imageIds,
+  shapeIds,
+  textIds
+}: SelectionMixedCompositionParams): SelectionMixedCompositionSource | null {
+  const { editor, __editorHelpers: helpers } = window as any
+  const selection = editor.canvas.getActiveObject()
+  const children = selection?.getObjects?.()
+  const expectedCount = imageIds.length + shapeIds.length + textIds.length
+  if (selection?.type !== 'activeselection' || !Array.isArray(children) || children.length !== expectedCount) {
+    return null
+  }
+
+  const images = imageIds.map((id) => children.find((child: any) => child.id === id))
+  const shapes = shapeIds.map((id) => children.find((child: any) => child.id === id))
+  const texts = textIds.map((id) => children.find((child: any) => child.id === id))
+  if (images.some((image: any) => image?.type !== 'image')) return null
+  if (shapes.some((shape: any) => shape?.type !== 'shape-group')) return null
+  if (texts.some((text: any) => text?.type !== 'background-textbox')) return null
+  const shapeTexts = shapes.map((shape: any) => editor.shapeManager.getTextNode({ target: shape }))
+  if (shapeTexts.some((text: any) => !text)) return null
+
+  return {
+    images: images.map((image: any) => ({
+      ...helpers.serializeSnappingObjectSnapshot(image),
+      cropX: image.cropX ?? 0,
+      cropY: image.cropY ?? 0,
+      id: image.id,
+      originX: image.originX,
+      originY: image.originY,
+      skewX: image.skewX ?? 0,
+      skewY: image.skewY ?? 0
+    })),
+    selection: helpers.serializeSnappingObjectSnapshot(selection),
+    shapes: shapes.map((shape: any, index: number) => ({
+      snapshot: helpers.serializeShapeScaleSnapshot(shape),
+      text: helpers.serializeShapeTextObject(shapeTexts[index])
+    })),
+    texts: texts.map((text: any) => helpers.serializeTextResizeSnapshot(text))
   }
 }
 
@@ -185,6 +245,28 @@ function attachSelectionChildGeometry<Snapshot>({
   if (!geometry) throw new Error(`Не найдена видимая геометрия объекта ${id}`)
 
   return { geometry, snapshot }
+}
+
+/** Добавляет видимую геометрию к ожидаемым текстам в порядке переданных id. */
+function attachSelectionTextGeometries({
+  geometryById,
+  snapshots,
+  textIds
+}: {
+  geometryById: ReadonlyMap<string, SelectionChildSceneGeometrySnapshot>
+  snapshots: readonly TextResizeSnapshot[]
+  textIds: readonly string[]
+}): SelectionImageTextCompositionSnapshot['texts'] {
+  if (snapshots.length !== textIds.length) {
+    throw new Error('Для каждого текста должен существовать ожидаемый id')
+  }
+
+  return snapshots.map((snapshot, index) => {
+    const id = textIds[index]
+    if (!id) throw new Error('Для каждого текста должен существовать ожидаемый id')
+
+    return attachSelectionChildGeometry({ geometryById, id, snapshot })
+  })
 }
 
 /** Снимок одного шейпа и его текста внутри общего выделения. */
@@ -383,12 +465,52 @@ export class SelectionModel {
         id: snapshot.id,
         snapshot
       })),
-      texts: source.texts.map((snapshot, index) => {
-        const id = textIds[index]
-        if (!id) throw new Error('Для каждого текста должен существовать ожидаемый id')
+      texts: attachSelectionTextGeometries({ geometryById, snapshots: source.texts, textIds })
+    }
+  }
 
-        return attachSelectionChildGeometry({ geometryById, id, snapshot })
-      })
+  /** Возвращает полное состояние изображения, шейпа и отдельного текста в одной рамке. */
+  async getMixedCompositionSnapshot({
+    imageIds,
+    shapeIds,
+    textIds
+  }: {
+    imageIds: readonly string[]
+    shapeIds: readonly string[]
+    textIds: readonly string[]
+  }): Promise<SelectionMixedCompositionSnapshot> {
+    const expectedIds = [...imageIds, ...shapeIds, ...textIds]
+    if (imageIds.length === 0 || shapeIds.length === 0 || textIds.length === 0) {
+      throw new Error('Полный смешанный состав требует изображение, шейп и отдельный текст')
+    }
+    if (expectedIds.some((id) => id.length === 0) || new Set(expectedIds).size !== expectedIds.length) {
+      throw new Error('id объектов полного смешанного состава должны быть непустыми и уникальными')
+    }
+
+    const source = await this.page.evaluate(readMixedCompositionSource, {
+      imageIds: [...imageIds],
+      shapeIds: [...shapeIds],
+      textIds: [...textIds]
+    })
+    if (!source) throw new Error('Общее выделение должно содержать ожидаемый полный смешанный состав')
+
+    const geometries = await this.getChildSceneGeometry()
+    const geometryById = new Map(geometries.map((geometry) => [geometry.id, geometry]))
+
+    return {
+      images: source.images.map((snapshot) => attachSelectionChildGeometry({
+        geometryById,
+        id: snapshot.id,
+        snapshot
+      })),
+      selection: source.selection,
+      shapes: source.shapes.map(({ snapshot, text }, index) => {
+        const id = shapeIds[index]
+        if (!id) throw new Error('Для каждого шейпа должен существовать ожидаемый id')
+
+        return { ...attachSelectionChildGeometry({ geometryById, id, snapshot }), text }
+      }),
+      texts: attachSelectionTextGeometries({ geometryById, snapshots: source.texts, textIds })
     }
   }
 
