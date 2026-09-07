@@ -13,9 +13,13 @@ import {
 
 import { ImageEditor } from '../../../src/editor'
 import CanvasManager from '../../../src/editor/canvas-manager'
-import ActiveSelectionScaleInteractionController, {
-  type ActiveSelectionScaleInteractionEvent
-} from '../../../src/editor/selection-manager/scaling/active-selection-scale-interaction-controller'
+import ErrorManager from '../../../src/editor/error-manager'
+import HistoryManager from '../../../src/editor/history-manager'
+// eslint-disable-next-line max-len
+import ActiveSelectionScaleInteractionController from '../../../src/editor/selection-manager/scaling/active-selection-scale-interaction-controller'
+import type {
+  ActiveSelectionScaleInteractionEvent
+} from '../../../src/editor/selection-manager/scaling/active-selection-scale-session'
 import {
   createRectangularScaleGestureProjection,
   createRectangularScaleProjectionModes,
@@ -92,6 +96,7 @@ interface ActiveSelectionScaleHarnessDependencies {
   >
   readonly editor: ImageEditor
   readonly endCurrentTransformMock: jest.MockedFunction<Canvas['endCurrentTransform']>
+  readonly endHistoryActionMock: jest.MockedFunction<ImageEditor['historyManager']['endAction']>
   readonly markHandledMock: jest.MockedFunction<ImageEditor['snappingManager']['markScaleStepHandled']>
   readonly publishGuidesMock: jest.MockedFunction<
     ImageEditor['snappingManager']['publishVerifiedScaleGuides']
@@ -108,11 +113,17 @@ interface ActiveSelectionScaleHarnessDependencies {
   readonly clearTextSelectionScalingMock: jest.MockedFunction<
     ImageEditor['textManager']['clearActiveSelectionScaling']
   >
+  readonly confirmTextSelectionScalePreviewMock: jest.MockedFunction<
+    ImageEditor['textManager']['confirmActiveSelectionScalePreview']
+  >
   readonly measureTextSelectionScaleMock: jest.MockedFunction<
     ImageEditor['textManager']['measureActiveSelectionScale']
   >
   readonly resolveTextSelectionScaleStepMock: jest.MockedFunction<
     ImageEditor['textManager']['resolveActiveSelectionScaleStep']
+  >
+  readonly restoreTextSelectionScalePreviewMock: jest.MockedFunction<
+    ImageEditor['textManager']['restoreActiveSelectionScalePreview']
   >
   readonly supportsTextSelectionMock: jest.MockedFunction<
     ImageEditor['textManager']['supportsActiveSelectionScaling']
@@ -159,6 +170,12 @@ interface ActiveSelectionTextScaleStepMocks {
 interface ActiveSelectionTextManagerDependencies extends ActiveSelectionTextScaleStepMocks {
   readonly beginTextSelectionScalingMock: ActiveSelectionScaleHarnessDependencies['beginTextSelectionScalingMock']
   readonly clearTextSelectionScalingMock: ActiveSelectionScaleHarnessDependencies['clearTextSelectionScalingMock']
+  readonly confirmTextSelectionScalePreviewMock: ActiveSelectionScaleHarnessDependencies[
+    'confirmTextSelectionScalePreviewMock'
+  ]
+  readonly restoreTextSelectionScalePreviewMock: ActiveSelectionScaleHarnessDependencies[
+    'restoreTextSelectionScalePreviewMock'
+  ]
   readonly supportsTextSelectionMock: ActiveSelectionScaleHarnessDependencies['supportsTextSelectionMock']
   readonly textManager: TextManager
 }
@@ -359,24 +376,24 @@ function resolveTextOriginFactor({ origin }: { origin: TOriginX | TOriginY }): n
   return 0
 }
 
-/** Устанавливает для текста геометрию видимых границ с учётом временной рамки. */
-function installSelectionTextGeometryContract({
+/** Устанавливает для ребёнка геометрию видимых границ с учётом временной рамки. */
+export function installSelectionChildGeometryContract({
   selection,
-  text
+  target
 }: {
   selection: ActiveSelection
-  text: BackgroundTextbox
+  target: FabricObject
 }): void {
-  text.setPositionByOrigin = (point, originX, originY) => {
-    text.left = point.x - ((text.width * text.scaleX) * resolveTextOriginFactor({ origin: originX }))
-    text.top = point.y - ((text.height * text.scaleY) * resolveTextOriginFactor({ origin: originY }))
+  target.setPositionByOrigin = (point, originX, originY) => {
+    target.left = point.x - ((target.width * target.scaleX) * resolveTextOriginFactor({ origin: originX }))
+    target.top = point.y - ((target.height * target.scaleY) * resolveTextOriginFactor({ origin: originY }))
 
-    return text
+    return target
   }
-  text.getPointByOrigin = (originX, originY) => {
-    const localX = text.left + ((text.width * text.scaleX) * resolveTextOriginFactor({ origin: originX }))
-    const localY = text.top + ((text.height * text.scaleY) * resolveTextOriginFactor({ origin: originY }))
-    if (text.group !== selection) return new Point(localX, localY)
+  target.getPointByOrigin = (originX, originY) => {
+    const localX = target.left + ((target.width * target.scaleX) * resolveTextOriginFactor({ origin: originX }))
+    const localY = target.top + ((target.height * target.scaleY) * resolveTextOriginFactor({ origin: originY }))
+    if (target.group !== selection) return new Point(localX, localY)
 
     const radians = (selection.angle * Math.PI) / 180
     const scaledX = localX * selection.scaleX
@@ -387,14 +404,14 @@ function installSelectionTextGeometryContract({
       selection.top + (scaledX * Math.sin(radians)) + (scaledY * Math.cos(radians))
     )
   }
-  text.getCoords = () => [
-    text.getPointByOrigin('left', 'top'),
-    text.getPointByOrigin('right', 'top'),
-    text.getPointByOrigin('right', 'bottom'),
-    text.getPointByOrigin('left', 'bottom')
+  target.getCoords = () => [
+    target.getPointByOrigin('left', 'top'),
+    target.getPointByOrigin('right', 'top'),
+    target.getPointByOrigin('right', 'bottom'),
+    target.getPointByOrigin('left', 'bottom')
   ]
-  text.getBoundingRect = () => {
-    const corners = text.getCoords()
+  target.getBoundingRect = () => {
+    const corners = target.getCoords()
     const xCoordinates = corners.map(({ x }) => x)
     const yCoordinates = corners.map(({ y }) => y)
     const left = Math.min(...xCoordinates)
@@ -477,6 +494,8 @@ function createTextSelectionMeasurement({
       center: Object.freeze({ x: target.left, y: target.top }),
       target
     }))),
+    domainChildren: Object.freeze([]),
+    domainMeasurement: null,
     frame: Object.freeze({
       center: Object.freeze({ x: 0, y: 0 }),
       height: selection.height * multipliers.y,
@@ -515,11 +534,23 @@ function createShapeManagerDependencies({
     ReturnType<ImageEditor['shapeManager']['clearActiveSelectionScalePreviewState']>,
     Parameters<ImageEditor['shapeManager']['clearActiveSelectionScalePreviewState']>
   >()
+  const resolveScaleControlModeMock: jest.MockedFunction<
+    ImageEditor['shapeManager']['resolveActiveSelectionScaleControlMode']
+  > = jest.fn(({ event, transform }) => {
+    const isCorner = transform.corner === 'tl'
+      || transform.corner === 'tr'
+      || transform.corner === 'bl'
+      || transform.corner === 'br'
+    if (!isCorner) return null
+
+    return event && 'shiftKey' in event && event.shiftKey ? 'free' : 'uniform'
+  })
   const shapeManager: ShapeManager = Object.create(ShapeManager.prototype)
 
   shapeManager.supportsActiveSelectionScaling = supportsShapeSelectionMock
   shapeManager.applyActiveSelectionScalePreview = applyShapeSelectionPreviewMock
   shapeManager.clearActiveSelectionScalePreviewState = clearShapeSelectionPreviewStateMock
+  shapeManager.resolveActiveSelectionScaleControlMode = resolveScaleControlModeMock
 
   if (shapeManager.supportsActiveSelectionScaling !== supportsShapeSelectionMock) {
     throw new Error('ShapeManager должен использовать наблюдаемую проверку состава выделения')
@@ -529,6 +560,9 @@ function createShapeManagerDependencies({
   }
   if (shapeManager.clearActiveSelectionScalePreviewState !== clearShapeSelectionPreviewStateMock) {
     throw new Error('ShapeManager должен использовать наблюдаемую очистку временного масштаба')
+  }
+  if (shapeManager.resolveActiveSelectionScaleControlMode !== resolveScaleControlModeMock) {
+    throw new Error('ShapeManager должен использовать наблюдаемый режим угловой ручки')
   }
 
   return Object.freeze({
@@ -614,6 +648,18 @@ function createTextManagerDependencies({
     ReturnType<ImageEditor['textManager']['clearActiveSelectionScaling']>,
     Parameters<ImageEditor['textManager']['clearActiveSelectionScaling']>
   >(() => Boolean(contract))
+  const confirmTextSelectionScalePreviewMock: ActiveSelectionTextManagerDependencies[
+    'confirmTextSelectionScalePreviewMock'
+  ] = jest.fn<
+    ReturnType<ImageEditor['textManager']['confirmActiveSelectionScalePreview']>,
+    Parameters<ImageEditor['textManager']['confirmActiveSelectionScalePreview']>
+  >(() => Boolean(contract))
+  const restoreTextSelectionScalePreviewMock: ActiveSelectionTextManagerDependencies[
+    'restoreTextSelectionScalePreviewMock'
+  ] = jest.fn<
+    ReturnType<ImageEditor['textManager']['restoreActiveSelectionScalePreview']>,
+    Parameters<ImageEditor['textManager']['restoreActiveSelectionScalePreview']>
+  >(() => false)
   const textManager: TextManager = Object.create(TextManager.prototype)
   const stepMocks = createTextScaleStepMocks({ children, contract, target })
 
@@ -623,10 +669,14 @@ function createTextManagerDependencies({
   textManager.resolveActiveSelectionScaleStep = stepMocks.resolveTextSelectionScaleStepMock
   textManager.applyActiveSelectionScalePreview = stepMocks.applyTextSelectionPreviewMock
   textManager.clearActiveSelectionScaling = clearTextSelectionScalingMock
+  textManager.confirmActiveSelectionScalePreview = confirmTextSelectionScalePreviewMock
+  textManager.restoreActiveSelectionScalePreview = restoreTextSelectionScalePreviewMock
 
   return Object.freeze({
     beginTextSelectionScalingMock,
     clearTextSelectionScalingMock,
+    confirmTextSelectionScalePreviewMock,
+    restoreTextSelectionScalePreviewMock,
     ...stepMocks,
     supportsTextSelectionMock,
     textManager
@@ -647,9 +697,8 @@ function createScaleTestCanvas({
     discardActiveObject: jest.fn(() => {
       const selection = activeObject
       if (selection instanceof ActiveSelection) {
-        selection.getObjects().forEach((object) => {
+        selection.removeAll().forEach((object) => {
           object.set({
-            group: undefined,
             scaleX: object.scaleX * selection.scaleX,
             scaleY: object.scaleY * selection.scaleY
           })
@@ -687,12 +736,14 @@ function createScaleTestCanvas({
 /** Собирает минимальный редактор с владельцами одного тестового жеста. */
 function createScaleTestEditor({
   canvas,
+  endHistoryActionMock,
   shapeManager,
   snappingManager,
   target,
   textManager
 }: {
   canvas: Canvas
+  endHistoryActionMock: ActiveSelectionScaleHarnessDependencies['endHistoryActionMock']
   shapeManager: ShapeManager
   snappingManager: SnappingManager
   target: ActiveSelection
@@ -707,9 +758,13 @@ function createScaleTestEditor({
     })
   )
   const editor: ImageEditor = Object.create(ImageEditor.prototype)
+  const historyManager: HistoryManager = Object.create(HistoryManager.prototype)
 
   editor.canvas = canvas
   editor.canvasManager = canvasManager
+  editor.errorManager = new ErrorManager({ editor })
+  historyManager.endAction = endHistoryActionMock
+  editor.historyManager = historyManager
   editor.shapeManager = shapeManager
   editor.snappingManager = snappingManager
   editor.textManager = textManager
@@ -743,6 +798,7 @@ function createControllerDependencies({
   const markHandledMock: ActiveSelectionScaleHarness['markHandledMock'] = jest.fn()
   const publishGuidesMock: ActiveSelectionScaleHarness['publishGuidesMock'] = jest.fn()
   const endCurrentTransformMock: ActiveSelectionScaleHarness['endCurrentTransformMock'] = jest.fn()
+  const endHistoryActionMock: ActiveSelectionScaleHarness['endHistoryActionMock'] = jest.fn()
   const snappingManager: SnappingManager = Object.create(SnappingManager.prototype)
   const shapeDependencies = createShapeManagerDependencies({ supportsShapeSelection })
   const textDependencies = createTextManagerDependencies({
@@ -757,6 +813,7 @@ function createControllerDependencies({
   snappingManager.publishVerifiedScaleGuides = publishGuidesMock
   const editor = createScaleTestEditor({
     canvas,
+    endHistoryActionMock,
     shapeManager: shapeDependencies.shapeManager,
     snappingManager,
     target,
@@ -769,13 +826,16 @@ function createControllerDependencies({
     beginTextSelectionScalingMock: textDependencies.beginTextSelectionScalingMock,
     clearShapeSelectionPreviewStateMock: shapeDependencies.clearShapeSelectionPreviewStateMock,
     clearTextSelectionScalingMock: textDependencies.clearTextSelectionScalingMock,
+    confirmTextSelectionScalePreviewMock: textDependencies.confirmTextSelectionScalePreviewMock,
     captureEnvironmentMock,
     editor,
     endCurrentTransformMock,
+    endHistoryActionMock,
     markHandledMock,
     measureTextSelectionScaleMock: textDependencies.measureTextSelectionScaleMock,
     publishGuidesMock,
     resolveTextSelectionScaleStepMock: textDependencies.resolveTextSelectionScaleStepMock,
+    restoreTextSelectionScalePreviewMock: textDependencies.restoreTextSelectionScalePreviewMock,
     supportsShapeSelectionMock: shapeDependencies.supportsShapeSelectionMock,
     supportsTextSelectionMock: textDependencies.supportsTextSelectionMock
   })
@@ -1064,7 +1124,7 @@ function createTextSelectionTarget({
       left: center.x - target.left - (text.width / 2),
       top: center.y - target.top - (text.height / 2)
     })
-    installSelectionTextGeometryContract({ selection: target, text })
+    installSelectionChildGeometryContract({ selection: target, target: text })
   })
   target.calcTransformMatrix = jest.fn((): TMat2D => {
     const radians = (target.angle * Math.PI) / 180

@@ -1,5 +1,5 @@
 import type { SnappingObjectSnapshot } from './snapping.types'
-import type { ShapeScaleSnapshot } from './shape.types'
+import type { ShapeScaleSnapshot, ShapeTextInfo } from './shape.types'
 import type { TextResizeSnapshot } from './text.types'
 
 /** Ручка, за которую можно изменить размер активного составного объекта. */
@@ -71,6 +71,24 @@ export interface SelectionImageTextCompositionSnapshot {
   images: Array<{
     geometry: SelectionChildSceneGeometrySnapshot
     snapshot: SelectionCompositionChildSnapshot
+  }>
+  texts: Array<{
+    geometry: SelectionChildSceneGeometrySnapshot
+    snapshot: TextResizeSnapshot
+  }>
+}
+
+/** Состояние полного смешанного состава вместе с канонической и видимой геометрией детей. */
+export interface SelectionMixedCompositionSnapshot {
+  selection: SnappingObjectSnapshot
+  images: Array<{
+    geometry: SelectionChildSceneGeometrySnapshot
+    snapshot: SelectionCompositionChildSnapshot
+  }>
+  shapes: Array<{
+    geometry: SelectionChildSceneGeometrySnapshot
+    snapshot: ShapeScaleSnapshot
+    text: ShapeTextInfo
   }>
   texts: Array<{
     geometry: SelectionChildSceneGeometrySnapshot

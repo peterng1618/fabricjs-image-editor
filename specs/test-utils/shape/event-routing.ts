@@ -29,6 +29,9 @@ export type ShapeEventRoutingHarness = Readonly<{
   commitShapeSelectionScaleMock: jest.MockedFunction<
     SelectionManager['commitShapeSelectionScale']
   >
+  shouldSkipShapeSelectionScaleCommitMock: jest.MockedFunction<
+    SelectionManager['shouldSkipShapeSelectionScaleCommit']
+  >
   scalingController: {
     handleObjectScaling: jest.Mock
     handleCanvasMouseMove: jest.Mock
@@ -39,6 +42,107 @@ export type ShapeEventRoutingHarness = Readonly<{
     resolveActiveSelectionCommittedScale: jest.Mock
   }
 }>
+
+/** SelectionManager и его наблюдаемые обработчики для маршрутизации событий шейпа. */
+type ShapeSelectionRoutingHarness = Pick<
+  ShapeEventRoutingHarness,
+  | 'commitShapeSelectionScaleMock'
+  | 'handleShapeSelectionScaleStepMock'
+  | 'shouldSkipShapeSelectionScaleCommitMock'
+> & Readonly<{
+  selectionManager: SelectionManager
+}>
+
+/** Создаёт SelectionManager с наблюдаемыми обработчиками скейлинга шейпов. */
+function createShapeSelectionRoutingHarness(): ShapeSelectionRoutingHarness {
+  const selectionManager: SelectionManager = Object.create(SelectionManager.prototype)
+  const handleShapeSelectionScaleStepMock: ShapeEventRoutingHarness['handleShapeSelectionScaleStepMock'] = jest.fn<
+    ReturnType<SelectionManager['handleShapeSelectionScaleStep']>,
+    Parameters<SelectionManager['handleShapeSelectionScaleStep']>
+  >(() => false)
+  const commitShapeSelectionScaleMock: ShapeEventRoutingHarness['commitShapeSelectionScaleMock'] = jest.fn<
+    ReturnType<SelectionManager['commitShapeSelectionScale']>,
+    Parameters<SelectionManager['commitShapeSelectionScale']>
+  >(() => false)
+  const shouldSkipShapeSelectionScaleCommitMock:
+    ShapeEventRoutingHarness['shouldSkipShapeSelectionScaleCommitMock'] = jest.fn<
+      ReturnType<SelectionManager['shouldSkipShapeSelectionScaleCommit']>,
+      Parameters<SelectionManager['shouldSkipShapeSelectionScaleCommit']>
+    >(() => false)
+
+  selectionManager.handleShapeSelectionScaleStep = handleShapeSelectionScaleStepMock
+  selectionManager.commitShapeSelectionScale = commitShapeSelectionScaleMock
+  selectionManager.shouldSkipShapeSelectionScaleCommit = shouldSkipShapeSelectionScaleCommitMock
+
+  return {
+    selectionManager,
+    handleShapeSelectionScaleStepMock,
+    commitShapeSelectionScaleMock,
+    shouldSkipShapeSelectionScaleCommitMock
+  }
+}
+
+/** Создаёт наблюдаемую зависимость скейлинга для ShapeEventController. */
+function createShapeEventScalingController(): ShapeEventRoutingHarness['scalingController'] {
+  return {
+    handleObjectScaling: jest.fn(),
+    handleCanvasMouseMove: jest.fn(),
+    handleObjectModified: jest.fn(),
+    clearActiveSelectionState: jest.fn(),
+    clearState: jest.fn(),
+    commitActiveSelectionGroupScaling: jest.fn(() => true),
+    resolveActiveSelectionCommittedScale: jest.fn(() => ({
+      preserveSceneGeometryOnCommit: false,
+      scaleX: 1,
+      scaleY: 1
+    }))
+  }
+}
+
+/** Создаёт и связывает ShapeEventController с подготовленными тестовыми зависимостями. */
+function createBoundShapeEventController({
+  canvas,
+  selectionManager,
+  scalingController,
+  editingController,
+  lifecycleController
+}: {
+  canvas: ShapeEventRoutingHarness['canvas']
+  selectionManager: SelectionManager
+  scalingController: ShapeEventRoutingHarness['scalingController']
+  editingController: ShapeEventRoutingHarness['editingController']
+  lifecycleController: ShapeEventRoutingHarness['lifecycleController']
+}): ShapeEventController {
+  const controller = new ShapeEventController({
+    dependencies: {
+      editor: {
+        canvas,
+        canvasManager: {
+          applyObjectPlacement: jest.fn(),
+          getObjectPlacement: jest.fn(() => ({
+            left: 0,
+            top: 0,
+            originX: 'center',
+            originY: 'center'
+          }))
+        },
+        selectionManager
+      },
+      scalingController,
+      editingController,
+      lifecycleController,
+      layoutController: {},
+      textNodeController: {
+        isInternalUpdate: jest.fn()
+      },
+      editingPlacements: new WeakMap()
+    } as never
+  })
+
+  controller.bind()
+
+  return controller
+}
 
 /** Возвращает обязательный обработчик window-события из вызовов addEventListener. */
 export function getRequiredShapeWindowListener({
@@ -70,31 +174,8 @@ export function createShapeEventRoutingHarness(): ShapeEventRoutingHarness {
   })
   const group = new ShapeGroupObject([child], {})
   const secondGroup = new ShapeGroupObject([new Rect({ width: 30, height: 30 })], {})
-  const selectionManager: SelectionManager = Object.create(SelectionManager.prototype)
-  const handleShapeSelectionScaleStepMock: ShapeEventRoutingHarness['handleShapeSelectionScaleStepMock'] = jest.fn<
-    ReturnType<SelectionManager['handleShapeSelectionScaleStep']>,
-    Parameters<SelectionManager['handleShapeSelectionScaleStep']>
-  >(() => false)
-  const commitShapeSelectionScaleMock: ShapeEventRoutingHarness['commitShapeSelectionScaleMock'] = jest.fn<
-    ReturnType<SelectionManager['commitShapeSelectionScale']>,
-    Parameters<SelectionManager['commitShapeSelectionScale']>
-  >(() => false)
-
-  selectionManager.handleShapeSelectionScaleStep = handleShapeSelectionScaleStepMock
-  selectionManager.commitShapeSelectionScale = commitShapeSelectionScaleMock
-  const scalingController = {
-    handleObjectScaling: jest.fn(),
-    handleCanvasMouseMove: jest.fn(),
-    handleObjectModified: jest.fn(),
-    clearActiveSelectionState: jest.fn(),
-    clearState: jest.fn(),
-    commitActiveSelectionGroupScaling: jest.fn(() => true),
-    resolveActiveSelectionCommittedScale: jest.fn(() => ({
-      preserveSceneGeometryOnCommit: false,
-      scaleX: 1,
-      scaleY: 1
-    }))
-  }
+  const selectionHarness = createShapeSelectionRoutingHarness()
+  const scalingController = createShapeEventScalingController()
   const editingController = {
     handleMouseDown: jest.fn()
   }
@@ -104,44 +185,25 @@ export function createShapeEventRoutingHarness(): ShapeEventRoutingHarness {
     clearResizeStarts: jest.fn(),
     finishResize: jest.fn()
   }
-  const controller = new ShapeEventController({
-    dependencies: {
-      editor: {
-        canvas,
-        canvasManager: {
-          applyObjectPlacement: jest.fn(),
-          getObjectPlacement: jest.fn(() => ({
-            left: 0,
-            top: 0,
-            originX: 'center',
-            originY: 'center'
-          }))
-        },
-        selectionManager
-      },
-      scalingController,
-      editingController,
-      lifecycleController,
-      layoutController: {},
-      textNodeController: {
-        isInternalUpdate: jest.fn()
-      },
-      editingPlacements: new WeakMap()
-    } as never
+  const controller = createBoundShapeEventController({
+    canvas,
+    selectionManager: selectionHarness.selectionManager,
+    scalingController,
+    editingController,
+    lifecycleController
   })
-
-  controller.bind()
 
   return {
     canvas,
     child,
     controller,
     editingController,
-    commitShapeSelectionScaleMock,
+    commitShapeSelectionScaleMock: selectionHarness.commitShapeSelectionScaleMock,
     group,
     lifecycleController,
-    handleShapeSelectionScaleStepMock,
+    handleShapeSelectionScaleStepMock: selectionHarness.handleShapeSelectionScaleStepMock,
     scalingController,
+    shouldSkipShapeSelectionScaleCommitMock: selectionHarness.shouldSkipShapeSelectionScaleCommitMock,
     secondGroup
   }
 }

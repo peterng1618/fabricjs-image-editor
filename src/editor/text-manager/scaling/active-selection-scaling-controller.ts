@@ -1,7 +1,6 @@
 import {
   ActiveSelection,
   FabricImage,
-  Point,
   type Canvas,
   type FabricObject,
   type Transform
@@ -14,6 +13,9 @@ import type {
 } from '../../snapping-manager/scaling/rectangular-scale-gesture-projection'
 import type { ScaleSnapPlan } from '../../snapping-manager/scaling/scale-snapping-resolver'
 import type { EditorTextbox } from '../types'
+import type {
+  ActiveSelectionScaleDomainSource
+} from '../../selection-manager/scaling/active-selection-scale-domain-source'
 import { resolveCanonicalActiveSelectionTexts } from './active-selection-text-children'
 import ActiveSelectionTextScaleMeasurer, {
   type ActiveSelectionTextScaleMeasurement
@@ -99,10 +101,12 @@ function resolveSupportedAffineImage({
   return isCanonical ? target : null
 }
 
-/** Возвращает поддерживаемый состав только из канонических текстов и изображений. */
+/** Возвращает поддерживаемые тексты, изображения и явно переданные доменные объекты. */
 function resolveSupportedSelectionContent({
+  domainTargets = [],
   selection
 }: {
+  domainTargets?: readonly FabricObject[]
   selection: ActiveSelection
 }): ActiveSelectionTextScalingContent | null {
   if (!isNear({ actual: selection.scaleX ?? 1, expected: 1 })) return null
@@ -114,14 +118,18 @@ function resolveSupportedSelectionContent({
   const texts = resolveCanonicalActiveSelectionTexts({ selection })
   if (!texts) return null
   const textSet = new Set<FabricObject>(texts)
+  const domainTargetSet = new Set(domainTargets)
+  if (domainTargetSet.size !== domainTargets.length) return null
+  if (domainTargets.some((target) => target.group !== selection || textSet.has(target))) return null
   const affineChildren: FabricImage[] = []
   for (const object of objects) {
-    if (textSet.has(object)) continue
+    if (textSet.has(object) || domainTargetSet.has(object)) continue
 
     const image = resolveSupportedAffineImage({ selection, target: object })
     if (!image) return null
     affineChildren.push(image)
   }
+  if (domainTargets.some((target) => !objects.includes(target))) return null
 
   return Object.freeze({
     affineChildren: Object.freeze(affineChildren),
@@ -153,22 +161,33 @@ export default class TextActiveSelectionScalingController {
     this.canvasManager = canvasManager
   }
 
-  /** Проверяет канонический состав из отдельных текстов и необязательных изображений. */
-  public supportsScaling({ selection }: { selection: ActiveSelection }): boolean {
-    return resolveSupportedSelectionContent({ selection }) !== null
+  /** Проверяет канонический состав из текстов, изображений и необязательных доменных объектов. */
+  public supportsScaling({
+    domainTargets,
+    selection
+  }: {
+    domainTargets?: readonly FabricObject[]
+    selection: ActiveSelection
+  }): boolean {
+    return resolveSupportedSelectionContent({ domainTargets, selection }) !== null
   }
 
   /** Фиксирует неизменяемое начало поддерживаемого жеста до первой мутации Fabric. */
   public beginScaling({
+    domainSource,
     projection,
     selection,
     transform
   }: {
+    domainSource?: ActiveSelectionScaleDomainSource | null
     projection: RectangularScaleGestureProjection
     selection: ActiveSelection
     transform: Transform
   }): boolean {
-    const content = resolveSupportedSelectionContent({ selection })
+    const content = resolveSupportedSelectionContent({
+      domainTargets: domainSource?.targets,
+      selection
+    })
     if (!content || transform.target !== selection) return false
     if (!ACTIVE_SELECTION_TEXT_SCALE_CONTROLS.has(transform.corner)) return false
     if (this.session) throw new Error('Сессия скейлинга выделения с текстом уже начата')
@@ -177,6 +196,7 @@ export default class TextActiveSelectionScalingController {
       affineChildren: content.affineChildren,
       canvasManager: this.canvasManager,
       children: content.texts,
+      domainSource,
       projection,
       selection,
       transform
@@ -242,35 +262,44 @@ export default class TextActiveSelectionScalingController {
     return measurement.multipliers
   }
 
-  /** Фиксирует рассчитанную геометрию детей и восстанавливает рамку с единичным масштабом. */
+  /** Подтверждает применённый шаг после общей проверки фактической геометрии. */
+  public confirmScalePreview({ selection }: { selection: ActiveSelection }): boolean {
+    const { measurer } = this._getSession({ selection })
+
+    return measurer.confirmAppliedMeasurement()
+  }
+
+  /** Проверяет рассчитанную геометрию детей, сохраняя снимок до завершения общей фиксации. */
   public commitScaling({
-    selection,
-    transform
+    selection
   }: {
     selection: ActiveSelection
-    transform?: Transform | null
   }): boolean {
     const { session } = this
     if (!session || session.selection !== selection) return false
-    if (!session.measurer.hasAppliedMeasurement()) {
-      throw new Error('Фиксации выделения с текстами должно предшествовать измеренное промежуточное состояние')
+    if (!session.measurer.hasConfirmedMeasurement()) {
+      throw new Error('Фиксации выделения с текстами должно предшествовать подтверждённое состояние')
     }
 
+    const failures: unknown[] = []
     try {
-      const center = selection.getCenterPoint()
-      const angle = selection.angle ?? 0
-      selection.set({ angle: 0 })
-      selection.setPositionByOrigin(center, 'center', 'center')
-      selection.setCoords()
-
-      this._discardSelectionDuringCommit({ selection, transform })
+      if (this.canvas.getActiveObject() === selection) {
+        throw new Error('SelectionManager должен снять временную рамку до фиксации текстов')
+      }
       this._assertCommittedTexts({ texts: session.texts })
-      session.children.forEach((child) => child.setCoords())
-      this._restoreSelection({ angle, center, children: session.children })
-      this.canvas.requestRenderAll()
-    } finally {
-      this._clearSession({ selection })
+    } catch (error) {
+      failures.push(error)
     }
+
+    for (const child of session.children) {
+      try {
+        child.setCoords()
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    const [firstFailure] = failures
+    if (failures.length > 0) throw firstFailure
 
     return true
   }
@@ -284,18 +313,18 @@ export default class TextActiveSelectionScalingController {
     return true
   }
 
-  /** Проверяет, что текущая сессия уже применила рассчитанную геометрию. */
-  public hasAppliedScalePreview({ selection }: { selection: ActiveSelection }): boolean {
+  /** Проверяет, что текущая сессия уже подтвердила рассчитанную геометрию. */
+  public hasConfirmedScalePreview({ selection }: { selection: ActiveSelection }): boolean {
     if (this.session?.selection !== selection) return false
 
-    return this.session.measurer.hasAppliedMeasurement()
+    return this.session.measurer.hasConfirmedMeasurement()
   }
 
-  /** Восстанавливает последнее подтверждённое состояние перед досрочным завершением жеста. */
+  /** Восстанавливает последнее подтверждённое или исходное состояние текущего жеста. */
   public restoreScalePreview({ selection }: { selection: ActiveSelection }): boolean {
     if (this.session?.selection !== selection) return false
 
-    const restored = this.session.measurer.restoreAppliedMeasurement()
+    const restored = this.session.measurer.restoreConfirmedMeasurement()
     if (restored) this.canvas.requestRenderAll()
 
     return restored
@@ -318,27 +347,6 @@ export default class TextActiveSelectionScalingController {
     return session
   }
 
-  /** Снимает рамку внутри `object:modified`, не завершая тот же Fabric-transform повторно. */
-  private _discardSelectionDuringCommit({
-    selection,
-    transform
-  }: {
-    selection: ActiveSelection
-    transform?: Transform | null
-  }): void {
-    const currentTransform = Reflect.get(this.canvas, '_currentTransform')
-    const isCurrentTransform = currentTransform
-      && currentTransform === transform
-      && transform?.target === selection
-
-    if (isCurrentTransform) Reflect.set(this.canvas, '_currentTransform', null)
-    try {
-      this.canvas.discardActiveObject()
-    } finally {
-      if (isCurrentTransform) Reflect.set(this.canvas, '_currentTransform', currentTransform)
-    }
-  }
-
   /** Проверяет, что масштаб временной рамки полностью перенесён в канонические свойства текстов. */
   private _assertCommittedTexts({ texts }: { texts: readonly EditorTextbox[] }): void {
     for (const child of texts) {
@@ -353,23 +361,6 @@ export default class TextActiveSelectionScalingController {
         throw new Error('После фиксации каждый текст должен иметь каноническое преобразование')
       }
     }
-  }
-
-  /** Повторно создаёт ActiveSelection с исходным углом и точной канонической геометрией детей. */
-  private _restoreSelection({
-    angle,
-    center,
-    children
-  }: {
-    angle: number
-    center: Point
-    children: readonly FabricObject[]
-  }): void {
-    const restored = new ActiveSelection([...children], { canvas: this.canvas })
-    restored.set({ angle, flipX: false, flipY: false, scaleX: 1, scaleY: 1, skewX: 0, skewY: 0 })
-    restored.setPositionByOrigin(center, 'center', 'center')
-    restored.setCoords()
-    this.canvas.setActiveObject(restored)
   }
 
   /** Освобождает измеритель и удаляет сессию переданного выделения. */

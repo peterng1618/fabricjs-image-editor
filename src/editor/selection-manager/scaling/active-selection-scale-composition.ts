@@ -39,6 +39,7 @@ type ProtectedSelectionShapeState = Readonly<{
   angle: number
   flipX: boolean
   flipY: boolean
+  kind: 'shape'
   originX: FabricObject['originX']
   originY: FabricObject['originY']
   scaleX: number
@@ -67,6 +68,12 @@ type ProtectedSelectionTextCompositionChildState =
   | ProtectedSelectionImageState
   | ProtectedSelectionTextState
 
+/** Защищённое состояние ребёнка полного смешанного состава. */
+type ProtectedSelectionMixedChildState =
+  | ProtectedSelectionImageState
+  | ProtectedSelectionShapeState
+  | ProtectedSelectionTextState
+
 /** Состав выделения и свойства детей, которые должны сохраниться во время общего скейлинга. */
 export type ActiveSelectionScaleComposition = Readonly<{
   children: readonly ProtectedSelectionImageState[]
@@ -77,6 +84,9 @@ export type ActiveSelectionScaleComposition = Readonly<{
 }> | Readonly<{
   children: readonly ProtectedSelectionTextCompositionChildState[]
   kind: 'texts'
+}> | Readonly<{
+  children: readonly ProtectedSelectionMixedChildState[]
+  kind: 'mixed'
 }>
 
 /** Свойства выделения и преобразования Fabric, которые должны сохраниться во время жеста. */
@@ -112,6 +122,7 @@ export function resolveActiveSelectionScaleCompositionKind({
   if (isSupportedImageSelection({ target })) return 'images'
   if (editor.shapeManager.supportsActiveSelectionScaling({ selection: target })) return 'shapes'
   if (editor.textManager.supportsActiveSelectionScaling({ selection: target })) return 'texts'
+  if (isSupportedMixedSelection({ editor, target })) return 'mixed'
 
   return null
 }
@@ -242,6 +253,24 @@ function isSupportedImageSelection({ target }: { target: ActiveSelection }): boo
   return true
 }
 
+/** Проверяет полный состав минимум из изображения, шейпа и отдельного текста. */
+function isSupportedMixedSelection({
+  editor,
+  target
+}: {
+  editor: ImageEditor
+  target: ActiveSelection
+}): boolean {
+  const shapes = editor.shapeManager.resolveSupportedActiveSelectionShapeChildren({ selection: target })
+  if (!shapes) return false
+  if (!target.getObjects().some((object) => object instanceof FabricImage)) return false
+
+  return editor.textManager.supportsActiveSelectionScaling({
+    domainTargets: shapes,
+    selection: target
+  })
+}
+
 /** Сохраняет защищённые свойства дочерних объектов с учётом состава выделения. */
 function captureProtectedSelectionComposition({
   compositionKind,
@@ -269,6 +298,18 @@ function captureProtectedSelectionComposition({
         return captureProtectedSelectionTextState({ target: object })
       })),
       kind: 'texts'
+    })
+  }
+
+  if (compositionKind === 'mixed') {
+    return Object.freeze({
+      children: Object.freeze(target.getObjects().map((object) => {
+        if (object instanceof FabricImage) return captureProtectedSelectionImageState({ target: object })
+        if (object instanceof Textbox) return captureProtectedSelectionTextState({ target: object })
+
+        return captureProtectedSelectionShapeState({ target: object })
+      })),
+      kind: 'mixed'
     })
   }
 
@@ -317,6 +358,7 @@ function captureProtectedSelectionShapeState({
     angle: target.angle ?? 0,
     flipX: Boolean(target.flipX),
     flipY: Boolean(target.flipY),
+    kind: 'shape',
     originX: target.originX,
     originY: target.originY,
     scaleX: target.scaleX,
@@ -388,13 +430,14 @@ function isProtectedSelectionCompositionPreserved({
     })
   }
 
-  if (composition.kind === 'texts') {
+  if (composition.kind === 'texts' || composition.kind === 'mixed') {
     return composition.children.every((state, index) => {
       if (children[index] !== state.target) return false
 
-      return state.kind === 'image'
-        ? isProtectedSelectionImageContentStatePreserved({ state })
-        : isProtectedSelectionTextStatePreserved({ state })
+      if (state.kind === 'image') return isProtectedSelectionImageContentStatePreserved({ state })
+      if (state.kind === 'shape') return isProtectedSelectionAffineStatePreserved({ state })
+
+      return isProtectedSelectionTextStatePreserved({ state })
     })
   }
 

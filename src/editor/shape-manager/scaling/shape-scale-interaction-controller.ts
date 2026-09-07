@@ -9,19 +9,15 @@ import {
   type ObjectBounds
 } from '../../utils/geometry'
 import {
-  createScaleGestureBaseline,
   type FinalScaleGeometry,
   type PlannedScaleConstraint,
   type ScaleRawIntent,
   type ScaleSnapPlan
 } from '../../snapping-manager/scaling/scale-snapping-resolver'
-import { ScaleSnappingRuntime } from '../../snapping-manager/scaling/scale-snapping-runtime'
+import type { ScaleSnappingRuntime } from '../../snapping-manager/scaling/scale-snapping-runtime'
 import type { ScaleSceneEdge } from '../../snapping-manager/scaling/scale-projection'
 import {
-  createRectangularScaleGestureProjection,
-  createRectangularScaleProjectionModes,
   createRectangularScaleValues,
-  resolveRectangularScaleMovingEdges,
   resolveRectangularScaleMultipliers,
   resolveRectangularScalePointerMultipliers,
   type RectangularScaleGestureMode,
@@ -275,27 +271,13 @@ export default class ShapeScaleInteractionController {
     const pointerStart = event.scenePoint ?? event.pointer
     if (!gesture || !pointerStart) return false
 
-    gesture.target.setCoords()
-    const projection = createRectangularScaleGestureProjection({
-      transform: gesture.projectionTransform,
-      pointerStart
+    const snappingSession = this.editor.snappingManager.startRectangularScaleSnappingSession({
+      pointerStart,
+      transform: gesture.projectionTransform
     })
-    if (!projection) return false
+    if (!snappingSession) return false
 
-    const snappingModes = createRectangularScaleProjectionModes({ projection })
-    const snappingEnvironment = this.editor.snappingManager.captureScaleSnapEnvironment({
-      activeObject: gesture.target,
-      targetEdges: resolveRectangularScaleMovingEdges({ projectionModes: snappingModes })
-    })
-    const initialGeometry = createScaleGestureBaseline({
-      bounds: projection.baselineBounds,
-      fixedAnchor: projection.fixedAnchor,
-      projectionModes: snappingModes,
-      candidates: snappingEnvironment.candidates,
-      zoom: snappingEnvironment.zoom
-    })
-    const snapping = new ScaleSnappingRuntime()
-    snapping.startSession({ baseline: initialGeometry })
+    const { projection, runtime: snapping } = snappingSession
     this.session = Object.freeze({
       target: gesture.target,
       transform: gesture.transform,

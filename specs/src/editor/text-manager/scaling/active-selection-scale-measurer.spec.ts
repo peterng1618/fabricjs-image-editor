@@ -114,6 +114,7 @@ it('после свободного изменения ширины не воз�
   })
 
   measurer.apply({ measurement: freeWidthChange })
+  expect(measurer.confirmAppliedMeasurement()).toBe(true)
 
   expect(harness.children.every(({ autoExpand }) => autoExpand === false)).toBe(true)
   expect(freeWidthChange.multipliers.x).not.toBeCloseTo(1, 5)
@@ -131,6 +132,7 @@ it('после свободного изменения ширины не воз�
   expect(cachedUniform).toBe(uniformAfterWidthChange)
 
   measurer.apply({ measurement: uniformAfterWidthChange })
+  expect(measurer.confirmAppliedMeasurement()).toBe(true)
 
   expect(harness.children.every(({ autoExpand }) => autoExpand === false)).toBe(true)
   const appliedBounds = harness.target.getBoundingRect()

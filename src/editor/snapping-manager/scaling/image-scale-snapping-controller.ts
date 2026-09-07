@@ -8,21 +8,14 @@ import {
 
 import type { ImageEditor } from '../..'
 import {
-  createRectangularScaleGestureProjection,
-  createRectangularScaleProjectionModes,
-  resolveRectangularScaleMovingEdges,
   type RectangularScaleGestureMode,
   type RectangularScaleGestureProjection,
   type RectangularScaleGestureTransform,
   type RectangularScaleMultipliers,
   type RectangularScalePoint
 } from './rectangular-scale-gesture-projection'
-import {
-  createScaleGestureBaseline,
-  type ScaleRawIntent,
-  type VerifiedScaleGuide
-} from './scale-snapping-resolver'
-import { ScaleSnappingRuntime } from './scale-snapping-runtime'
+import type { ScaleRawIntent, VerifiedScaleGuide } from './scale-snapping-resolver'
+import type { ScaleSnappingRuntime } from './scale-snapping-runtime'
 import {
   applyRectangularScalePlan,
   readAppliedRectangularScaleMultipliers,
@@ -147,27 +140,13 @@ export class ImageScaleSnappingController {
     const pointerStart = event.scenePoint ?? event.pointer
     if (!gesture || !pointerStart) return false
 
-    gesture.target.setCoords()
-    const projection = createRectangularScaleGestureProjection({
-      transform: gesture.projectionTransform,
-      pointerStart
+    const snappingSession = this._editor.snappingManager.startRectangularScaleSnappingSession({
+      pointerStart,
+      transform: gesture.projectionTransform
     })
-    if (!projection) return false
+    if (!snappingSession) return false
 
-    const projectionModes = createRectangularScaleProjectionModes({ projection })
-    const environment = this._editor.snappingManager.captureScaleSnapEnvironment({
-      activeObject: gesture.target,
-      targetEdges: resolveRectangularScaleMovingEdges({ projectionModes })
-    })
-    const baseline = createScaleGestureBaseline({
-      bounds: projection.baselineBounds,
-      fixedAnchor: projection.fixedAnchor,
-      projectionModes,
-      candidates: environment.candidates,
-      zoom: environment.zoom
-    })
-    const runtime = new ScaleSnappingRuntime()
-    runtime.startSession({ baseline })
+    const { projection, runtime } = snappingSession
     this._session = Object.freeze({
       projection,
       protectedState: captureProtectedImageScaleState(gesture),

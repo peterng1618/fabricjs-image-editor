@@ -4,13 +4,16 @@ import {
   type CanvasOptions,
   type FabricObject,
   type TPointerEvent,
-  type TPointerEventInfo
+  type TPointerEventInfo,
+  type Transform
 } from 'fabric'
 import { ImageEditor } from '../index'
 import ActiveSelectionScaleInteractionController, {
-  type ActiveSelectionScaleInteractionEvent,
   type ActiveSelectionShapeCommitMode
 } from './scaling/active-selection-scale-interaction-controller'
+import type {
+  ActiveSelectionScaleInteractionEvent
+} from './scaling/active-selection-scale-session'
 
 type TextEditingEnteredEvent = CanvasEvents['text:editing:entered']
 type TextEditingExitedEvent = CanvasEvents['text:editing:exited']
@@ -179,30 +182,24 @@ export default class SelectionManager {
     return true
   }
 
-  /** Выполняет фиксацию текстов, не позволяя внутренним событиям смены выделения прервать сессию. */
+  /** Фиксирует выделение с текстами и все подключённые домены в рамках одной общей сессии. */
   public commitTextSelectionScale({
     selection,
-    commit
+    transform
   }: {
     selection: ActiveSelection
-    commit: () => void
+    transform?: Transform | null
   }): boolean {
-    const started = this.scaleInteractionController.beginTextSelectionCommit({ selection })
-    if (!started) return false
+    return this.scaleInteractionController.commitTextDrivenSelectionScale({ selection, transform })
+  }
 
-    let didFinish = false
-
-    try {
-      commit()
-    } finally {
-      didFinish = this.scaleInteractionController.finishTextSelectionCommit({ selection })
-    }
-
-    if (!didFinish) {
-      throw new Error('Сессия скейлинга текстов должна завершиться после фиксации')
-    }
-
-    return true
+  /** Проверяет, должен ли ShapeManager пропустить отдельную фиксацию полного смешанного состава. */
+  public shouldSkipShapeSelectionScaleCommit({
+    selection
+  }: {
+    selection: ActiveSelection
+  }): boolean {
+    return this.scaleInteractionController.shouldSkipShapeSelectionCommit({ selection })
   }
 
   /**

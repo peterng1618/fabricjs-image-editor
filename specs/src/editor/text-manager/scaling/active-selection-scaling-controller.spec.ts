@@ -66,9 +66,12 @@ it('применяет измеренное состояние к текстам
   expect(harness.children[0].scaleX).toBeCloseTo(1 / measurement.frame.scaleX, 9)
   expect(harness.children[1].scaleX).toBeCloseTo(1 / measurement.frame.scaleX, 9)
   expect(harness.editor.canvas.requestRenderAll).toHaveBeenCalledTimes(1)
+  expect(controller.hasConfirmedScalePreview({ selection: harness.target })).toBe(false)
+  expect(controller.confirmScalePreview({ selection: harness.target })).toBe(true)
+  expect(controller.hasConfirmedScalePreview({ selection: harness.target })).toBe(true)
 })
 
-it('фиксирует применённую геометрию в текстах и восстанавливает рамку со scale 1', () => {
+it('сохраняет подтверждённый снимок после проверки геометрии текстов', () => {
   const harness = createTextActiveSelectionScaleHarness()
   const controller = new TextActiveSelectionScalingController({
     canvas: harness.editor.canvas,
@@ -85,20 +88,47 @@ it('фиксирует применённую геометрию в текста
     selection: harness.target
   })
   controller.applyScalePreview({ measurement, selection: harness.target })
+  expect(controller.confirmScalePreview({ selection: harness.target })).toBe(true)
+  harness.editor.canvas.discardActiveObject()
 
-  expect(controller.commitScaling({
+  expect(controller.commitScaling({ selection: harness.target })).toBe(true)
+
+  expect(harness.editor.canvas.getActiveObject()).toBeNull()
+  expect(harness.children.every((text) => text.scaleX === 1 && text.scaleY === 1)).toBe(true)
+  harness.target.add(...harness.children)
+  expect(controller.restoreScalePreview({ selection: harness.target })).toBe(true)
+  expect(harness.children.every((text) => text.group === harness.target)).toBe(true)
+  expect(controller.clearScaling({ selection: harness.target })).toBe(true)
+  expect(controller.clearScaling({ selection: harness.target })).toBe(false)
+})
+
+it('при ошибках проверки и координат сохраняет причину проверки и подтверждённый снимок', () => {
+  const harness = createTextActiveSelectionScaleHarness()
+  const controller = new TextActiveSelectionScalingController({
+    canvas: harness.editor.canvas,
+    canvasManager: harness.editor.canvasManager
+  })
+  expect(controller.beginScaling({
+    projection: harness.projection,
     selection: harness.target,
     transform: harness.transform
   })).toBe(true)
+  const measurement = controller.measureScale({
+    mode: 'horizontal', multipliers: { x: 1.2, y: 1 }, selection: harness.target
+  })
+  controller.applyScalePreview({ measurement, selection: harness.target })
+  expect(controller.confirmScalePreview({ selection: harness.target })).toBe(true)
+  const secondSetCoordsMock = jest.spyOn(harness.children[1], 'setCoords')
+  jest.spyOn(harness.children[0], 'setCoords').mockImplementationOnce(() => {
+    throw new Error('Ошибка обновления координат первого текста')
+  })
 
-  const restoredSelection = harness.editor.canvas.getActiveObject()
-
-  expect(restoredSelection).not.toBe(harness.target)
-  expect(restoredSelection).toBeInstanceOf(harness.target.constructor)
-  expect(restoredSelection?.scaleX).toBe(1)
-  expect(restoredSelection?.scaleY).toBe(1)
-  expect(harness.children.every((text) => text.scaleX === 1 && text.scaleY === 1)).toBe(true)
-  expect(controller.clearScaling({ selection: harness.target })).toBe(false)
+  expect(() => controller.commitScaling({
+    selection: harness.target
+  })).toThrow('SelectionManager должен снять временную рамку до фиксации текстов')
+  expect(secondSetCoordsMock).toHaveBeenCalledTimes(1)
+  expect(controller.hasConfirmedScalePreview({ selection: harness.target })).toBe(true)
+  expect(controller.clearScaling({ selection: harness.target })).toBe(true)
 })
 
 it('оставляет отдельно повёрнутый текст на прежнем пути', () => {

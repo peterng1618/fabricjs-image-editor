@@ -483,7 +483,7 @@ it('не подключает выделение с вложенным изоб�
   expect(harness.publishGuidesMock).not.toHaveBeenCalled()
 })
 
-it('оставляет смешанное выделение на прежнем пути скейлинга', () => {
+it('оставляет выделение из изображения и обычного прямоугольника на прежнем пути скейлинга', () => {
   const harness = createActiveSelectionScaleHarness()
   const shape = new Rect({ width: 40, height: 30 })
   jest.spyOn(harness.target, 'getObjects').mockReturnValue([harness.children[0], shape])

@@ -39,6 +39,9 @@ import type {
   RectangularScaleMultipliers
 } from '../snapping-manager/scaling/rectangular-scale-gesture-projection'
 import type { ScaleSnapPlan } from '../snapping-manager/scaling/scale-snapping-resolver'
+import type {
+  ActiveSelectionScaleDomainSource
+} from '../selection-manager/scaling/active-selection-scale-domain-source'
 import {
   syncLineFontDefaultsAfterTextChange
 } from './line-defaults'
@@ -517,22 +520,31 @@ export default class TextManager {
     return scaleCommitted
   }
 
-  /** Проверяет состав из поддерживаемых отдельных текстов и допустимых изображений. */
-  public supportsActiveSelectionScaling({ selection }: { selection: ActiveSelection }): boolean {
-    return this.activeSelectionScalingController.supportsScaling({ selection })
+  /** Проверяет состав из поддерживаемых отдельных текстов, изображений и явно переданных доменных объектов. */
+  public supportsActiveSelectionScaling({
+    domainTargets,
+    selection
+  }: {
+    domainTargets?: readonly FabricObject[]
+    selection: ActiveSelection
+  }): boolean {
+    return this.activeSelectionScalingController.supportsScaling({ domainTargets, selection })
   }
 
   /** Фиксирует исходную геометрию поддерживаемого выделения с текстами до первого изменения. */
   public beginActiveSelectionScaling({
+    domainSource,
     projection,
     selection,
     transform
   }: {
+    domainSource?: ActiveSelectionScaleDomainSource | null
     projection: RectangularScaleGestureProjection
     selection: ActiveSelection
     transform: Transform
   }): boolean {
     return this.activeSelectionScalingController.beginScaling({
+      domainSource,
       projection,
       selection,
       transform
@@ -590,15 +602,18 @@ export default class TextManager {
     })
   }
 
-  /** Фиксирует рассчитанные свойства детей и восстанавливает рамку с единичным масштабом. */
+  /** Подтверждает применённый шаг только после общей проверки фактической геометрии. */
+  public confirmActiveSelectionScalePreview({ selection }: { selection: ActiveSelection }): boolean {
+    return this.activeSelectionScalingController.confirmScalePreview({ selection })
+  }
+
+  /** Проверяет рассчитанные свойства детей и сохраняет снимок до завершения общей фиксации. */
   public commitActiveSelectionScaling({
-    selection,
-    transform
+    selection
   }: {
     selection: ActiveSelection
-    transform?: Transform | null
   }): boolean {
-    return this.activeSelectionScalingController.commitScaling({ selection, transform })
+    return this.activeSelectionScalingController.commitScaling({ selection })
   }
 
   /** Очищает измерительное состояние завершённой или прерванной текстовой сессии. */
@@ -606,12 +621,12 @@ export default class TextManager {
     return this.activeSelectionScalingController.clearScaling({ selection })
   }
 
-  /** Проверяет, что общая текстовая сессия уже применила хотя бы один рассчитанный шаг. */
-  public hasAppliedActiveSelectionScale({ selection }: { selection: ActiveSelection }): boolean {
-    return this.activeSelectionScalingController.hasAppliedScalePreview({ selection })
+  /** Проверяет, что общая текстовая сессия уже подтвердила хотя бы один рассчитанный шаг. */
+  public hasConfirmedActiveSelectionScale({ selection }: { selection: ActiveSelection }): boolean {
+    return this.activeSelectionScalingController.hasConfirmedScalePreview({ selection })
   }
 
-  /** Восстанавливает последнее рассчитанное состояние перед досрочным завершением преобразования. */
+  /** Восстанавливает последнее подтверждённое или исходное состояние текущего преобразования. */
   public restoreActiveSelectionScalePreview({ selection }: { selection: ActiveSelection }): boolean {
     return this.activeSelectionScalingController.restoreScalePreview({ selection })
   }
@@ -872,13 +887,7 @@ export default class TextManager {
       const selection = event.target
       const committed = this.editor.selectionManager.commitTextSelectionScale({
         selection,
-        commit: () => {
-          const didCommit = this.commitActiveSelectionScaling({
-            selection,
-            transform: event.transform
-          })
-          if (!didCommit) throw new Error('TextManager должен зафиксировать поддерживаемое выделение с текстами')
-        }
+        transform: event.transform
       })
       if (committed) {
         this.cornerScaleInteractionController.finishGesture()

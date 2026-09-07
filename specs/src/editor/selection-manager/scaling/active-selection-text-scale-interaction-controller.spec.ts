@@ -18,6 +18,7 @@ it('начинает общую сессию для выделения из от
   expect(harness.supportsShapeSelectionMock).toHaveBeenCalledWith({ selection: harness.target })
   expect(harness.supportsTextSelectionMock).toHaveBeenCalledWith({ selection: harness.target })
   expect(harness.beginTextSelectionScalingMock).toHaveBeenCalledWith({
+    domainSource: null,
     projection: expect.any(Object),
     selection: harness.target,
     transform: harness.transform
@@ -35,6 +36,7 @@ it('начинает общую сессию для выделения из из
     event: createActiveSelectionScaleStartEvent({ harness })
   })).toBe(true)
   expect(harness.beginTextSelectionScalingMock).toHaveBeenCalledWith({
+    domainSource: null,
     projection: expect.any(Object),
     selection: harness.target,
     transform: harness.transform
@@ -184,7 +186,7 @@ it('при нажатии Shift после изменения размера ф�
   const scaleMarker = new MouseEvent('pointermove')
   const skewMarker = new MouseEvent('pointermove', { shiftKey: true })
   const hasAppliedScaleMock = jest
-    .spyOn(harness.editor.textManager, 'hasAppliedActiveSelectionScale')
+    .spyOn(harness.editor.textManager, 'hasConfirmedActiveSelectionScale')
     .mockReturnValue(true)
   const restoreScaleMock = jest
     .spyOn(harness.editor.textManager, 'restoreActiveSelectionScalePreview')

@@ -16,9 +16,9 @@ import type {
   ActiveSelectionTextScaleMeasurement
 } from './active-selection-scale-measurer'
 
-/** Источник точных измерений и последнего применённого состояния общего выделения с текстами. */
+/** Источник точных измерений и последнего подтверждённого состояния общего выделения с текстами. */
 export type ActiveSelectionTextScaleMeasurementSource = Readonly<{
-  getLastAppliedMeasurement(): ActiveSelectionTextScaleMeasurement | null
+  getLastConfirmedMeasurement(): ActiveSelectionTextScaleMeasurement | null
   measureValues({
     mode,
     values
@@ -257,7 +257,7 @@ function resolveHeldUniformMeasurement({
   })
   if (heldAxes.length === 0) return null
 
-  const measurement = measurer.getLastAppliedMeasurement()
+  const measurement = measurer.getLastConfirmedMeasurement()
   if (!measurement || measurement.mode !== mode) return null
 
   const constraints = resolveReachedConstraints({

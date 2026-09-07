@@ -5,14 +5,24 @@ import {
 } from 'fabric'
 import type { ImageEditor } from '../index'
 import type { ObjectPlacement } from '../canvas-manager'
+import type {
+  ActiveSelectionScaleDomainSource
+} from '../selection-manager/scaling/active-selection-scale-domain-source'
 import {
   DEFAULT_SHAPE_PRESET_KEY,
   getShapePreset
 } from './domain/shape-presets'
 import ShapeGroupFactory from './creation/shape-group-factory'
 import ShapeScalingController from './scaling/shape-scaling-controller'
+import type {
+  ActiveSelectionShapeScaleCommit
+} from './scaling/active-selection-scale-commit'
 import type { ActiveSelectionAppliedScale } from './scaling/active-selection-scaling-controller'
 import type { ShapeScalingPointerEvent } from './scaling/shape-scaling-layout'
+import {
+  captureShapeScalingGeometry,
+  restoreShapeScalingSnapshots
+} from './scaling/shape-scaling-geometry-snapshot'
 import {
   isShapeCornerScaleControl,
   resolveShapeCornerScaleMode,
@@ -86,19 +96,17 @@ function hasUnsupportedActiveSelectionShapeState({
     || Math.abs(group.skewY ?? 0) > ACTIVE_SELECTION_SHAPE_STATE_EPSILON
 }
 
-/** Возвращает все шейпы только для полностью поддерживаемого состава выделения. */
-function resolveSupportedActiveSelectionShapes({
+/** Возвращает все поддерживаемые шейпы из прямых детей общего выделения. */
+function resolveSupportedActiveSelectionShapeChildren({
   selection
 }: {
   selection: ActiveSelection
 }): ShapeGroup[] | null {
-  const objects = selection.getObjects()
-  if (objects.length < 2) return null
-
   const groups: ShapeGroup[] = []
 
-  for (const object of objects) {
-    if (!isShapeGroup(object) || Boolean(object.parent)) return null
+  for (const object of selection.getObjects()) {
+    if (!isShapeGroup(object)) continue
+    if (object.parent) return null
     if (hasUnsupportedActiveSelectionShapeState({ group: object })) return null
 
     const { shape, text } = getShapeNodes({ group: object })
@@ -107,7 +115,21 @@ function resolveSupportedActiveSelectionShapes({
     groups.push(object)
   }
 
-  return groups
+  return groups.length > 0 ? groups : null
+}
+
+/** Возвращает шейпы только для полностью поддерживаемого однородного состава. */
+function resolveSupportedActiveSelectionShapes({
+  selection
+}: {
+  selection: ActiveSelection
+}): ShapeGroup[] | null {
+  const groups = resolveSupportedActiveSelectionShapeChildren({ selection })
+  const objects = selection.getObjects()
+
+  return groups && groups.length >= 2 && groups.length === objects.length
+    ? groups
+    : null
 }
 
 /** Проверяет результат компоновки перед возвратом общему владельцу жеста. */
@@ -532,7 +554,44 @@ export default class ShapeManager {
     return resolveSupportedActiveSelectionShapes({ selection }) !== null
   }
 
-  /** Возвращает режим угловой ручки, которую ShapeManager установил для общего выделения. */
+  /** Возвращает поддерживаемые шейпы смешанного выделения без принятия остальных типов объектов. */
+  public resolveSupportedActiveSelectionShapeChildren({
+    selection
+  }: {
+    selection: ActiveSelection
+  }): readonly ShapeGroup[] | null {
+    return resolveSupportedActiveSelectionShapeChildren({ selection })
+  }
+
+  /** Создаёт источник фактической геометрии шейпов для общей смешанной сессии. */
+  public createActiveSelectionScaleDomainSource({
+    selection,
+    transform
+  }: {
+    selection: ActiveSelection
+    transform: Transform
+  }): ActiveSelectionScaleDomainSource | null {
+    const targets = resolveSupportedActiveSelectionShapeChildren({ selection })
+    if (!targets || transform.target !== selection) return null
+
+    try {
+      targets.forEach((group) => this.lifecycleController.beginResize({ group }))
+
+      return this.scalingController.createActiveSelectionScaleDomainSource({
+        selection,
+        targets,
+        transform
+      })
+    } catch (error) {
+      this.clearActiveSelectionScalePreviewState({ children: targets, selection })
+      throw error
+    }
+  }
+
+  /**
+   * Возвращает режим угловой ручки уже проверенного общего выделения с шейпами.
+   * Повторная проверка дочерних объектов здесь запрещена: временная компоновка меняет их масштаб.
+   */
   public resolveActiveSelectionScaleControlMode({
     selection,
     transform,
@@ -544,7 +603,6 @@ export default class ShapeManager {
   }): ShapeCornerScaleMode | null {
     if (transform.target !== selection) return null
     if (!isShapeCornerScaleControl({ target: selection, transform })) return null
-    if (!this.supportsActiveSelectionScaling({ selection })) return null
 
     return resolveShapeCornerScaleMode({
       shiftKey: Boolean(event && 'shiftKey' in event && event.shiftKey)
@@ -596,8 +654,8 @@ export default class ShapeManager {
     selection: ActiveSelection
     children: readonly FabricObject[]
   }): void {
-    if (children.length < 2) {
-      throw new Error('Для очистки общего скейлинга нужны минимум два дочерних шейпа')
+    if (children.length < 1) {
+      throw new Error('Для очистки общего скейлинга нужен хотя бы один дочерний шейп')
     }
 
     const groups: ShapeGroup[] = []
@@ -615,6 +673,104 @@ export default class ShapeManager {
     for (const group of groups) {
       this.scalingController.clearState({ group })
       this.lifecycleController.cancelResize({ group })
+    }
+  }
+
+  /**
+   * Переносит масштаб шейпов в канонические размеры без завершения общей транзакции.
+   */
+  public prepareActiveSelectionScaleCommit({
+    children,
+    selection,
+    transform
+  }: {
+    children: readonly FabricObject[]
+    selection: ActiveSelection
+    transform?: Transform | null
+  }): ActiveSelectionShapeScaleCommit {
+    const groups = children.map((child) => {
+      if (!isShapeGroup(child)) throw new Error('Фиксация смешанного состава принимает только шейпы')
+
+      return child
+    })
+    if (groups.length === 0) throw new Error('Фиксация смешанного состава требует хотя бы один шейп')
+
+    const beforeSnapshots = groups.map((group) => captureShapeScalingGeometry({ group }))
+    const { scaleX, scaleY } = this.scalingController.resolveActiveSelectionCommittedScale({ selection })
+
+    try {
+      this._materializeActiveSelectionShapeGroups({ groups, scaleX, scaleY, transform })
+
+      return Object.freeze({
+        groups: Object.freeze([...groups]),
+        selection
+      })
+    } catch (error) {
+      try {
+        restoreShapeScalingSnapshots({ snapshots: beforeSnapshots })
+      } catch {
+        // Ошибка фиксации остаётся основной после попытки восстановить каждый шейп.
+      }
+
+      throw error
+    }
+  }
+
+  /** Очищает временное состояние и публикует подготовленные изменения шейпов. */
+  public finishActiveSelectionScaleCommit({
+    commit
+  }: {
+    commit: ActiveSelectionShapeScaleCommit
+  }): void {
+    const failures: unknown[] = []
+
+    try {
+      this.scalingController.clearActiveSelectionState({ selection: commit.selection })
+    } catch (error) {
+      failures.push(error)
+    }
+
+    for (const group of commit.groups) {
+      try {
+        this.scalingController.clearState({ group })
+      } catch (error) {
+        failures.push(error)
+      }
+      try {
+        this.lifecycleController.finishResize({ group })
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+
+    const [firstFailure] = failures
+    if (failures.length > 0) throw firstFailure
+  }
+
+  /** Фиксирует каноническую геометрию всех шейпов, сохраняя состояние общей сессии. */
+  private _materializeActiveSelectionShapeGroups({
+    groups,
+    scaleX,
+    scaleY,
+    transform
+  }: {
+    groups: readonly ShapeGroup[]
+    scaleX: number
+    scaleY: number
+    transform?: Transform | null
+  }): void {
+    for (const group of groups) {
+      const placement = this.editor.canvasManager.getObjectPlacement({ object: group })
+      const committed = this.scalingController.materializeActiveSelectionGroupScaling({
+        group,
+        scaleX,
+        scaleY,
+        transform
+      })
+      if (!committed) throw new Error('Каждый измеренный шейп должен зафиксировать рассчитанные размеры')
+
+      this.editor.canvasManager.applyObjectPlacement({ object: group, placement })
+      group.setCoords()
     }
   }
 

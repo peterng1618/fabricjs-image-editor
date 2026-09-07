@@ -120,6 +120,16 @@ export const errorCodes = {
   },
 
   /**
+   * Коды ошибок для SelectionManager.
+   */
+  SELECTION_MANAGER: {
+    /**
+     * Ошибка завершающей очистки или события жизненного цикла после фиксации общей геометрии.
+     */
+    SCALE_COMMIT_FINALIZATION_FAILED: 'SELECTION_SCALE_COMMIT_FINALIZATION_FAILED'
+  },
+
+  /**
    * Коды ошибок и предупреждений для BackgroundManager.
    */
   BACKGROUND_MANAGER: {

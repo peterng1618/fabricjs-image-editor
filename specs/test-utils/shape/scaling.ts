@@ -1,4 +1,4 @@
-import { ActiveSelection, Point } from 'fabric'
+import { ActiveSelection, FabricObject, Point } from 'fabric'
 import ShapeScalingController from '../../../src/editor/shape-manager/scaling/shape-scaling-controller'
 import { getShapeNodes } from '../../../src/editor/shape-manager/domain/shape-nodes'
 import type { ShapeScalingState } from '../../../src/editor/shape-manager/types'
@@ -42,6 +42,20 @@ type ActiveSelectionShapeScalingShapeBounds = {
   height: number
 }
 
+/** Внутренние узлы шейпа, связанные с тестовой группой. */
+type ShapeScalingGroupNodes = Readonly<{
+  shape: ReturnType<typeof createMockShapeNode>
+  text: ReturnType<typeof createMockShapeTextbox>
+}>
+
+/** Набор групп шейпов и их внутренних узлов для общего выделения. */
+type ActiveSelectionShapeFixtures = Readonly<{
+  groups: ShapeScalingTestGroup[]
+  shapes: Array<ReturnType<typeof createMockShapeNode>>
+  texts: Array<ReturnType<typeof createMockShapeTextbox>>
+  groupNodes: Map<ShapeScalingTestGroup, ShapeScalingGroupNodes>
+}>
+
 export type ShapeScalingTransformStub = {
   original: {
     scaleX: number
@@ -71,6 +85,7 @@ export type ShapeScalingTestSetup = {
   text: ReturnType<typeof createMockShapeTextbox>
 }
 
+/** Тестовый ShapeScalingController и объекты общего выделения с шейпами. */
 export type ActiveSelectionShapeScalingTestSetup = {
   controller: ShapeScalingController
   canvas: ReturnType<typeof createMockCanvas>
@@ -78,10 +93,7 @@ export type ActiveSelectionShapeScalingTestSetup = {
   shapes: Array<ReturnType<typeof createMockShapeNode>>
   texts: Array<ReturnType<typeof createMockShapeTextbox>>
   selection: ActiveSelectionShapeScalingSelection
-  nonShapeObject: {
-    setCoords: jest.Mock
-    shapeComposite?: boolean
-  } | null
+  nonShapeObject: FabricObject | null
 }
 
 /**
@@ -139,7 +151,7 @@ export const createShapeScalingState = (
 }
 
 /**
- * Создаёт тестовый setup для ShapeScalingController с моками shape/text группы.
+ * Создаёт тестовое окружение ShapeScalingController с подменёнными узлами шейпа и текста.
  */
 export const createShapeScalingSetup = (): ShapeScalingTestSetup => {
   const canvas = createMockCanvas()
@@ -178,8 +190,96 @@ export const createShapeScalingSetup = (): ShapeScalingTestSetup => {
   }
 }
 
+/** Создаёт группы шейпов и сохраняет связь с их внутренними узлами. */
+function createActiveSelectionShapeFixtures({
+  shapeBounds
+}: {
+  shapeBounds?: ActiveSelectionShapeScalingShapeBounds[]
+}): ActiveSelectionShapeFixtures {
+  const groups: ShapeScalingTestGroup[] = []
+  const shapes: Array<ReturnType<typeof createMockShapeNode>> = []
+  const texts: Array<ReturnType<typeof createMockShapeTextbox>> = []
+  const groupNodes = new Map<ShapeScalingTestGroup, ShapeScalingGroupNodes>()
+
+  for (let index = 0; index < 2; index += 1) {
+    const bounds = shapeBounds?.[index]
+    const width = bounds?.width ?? 200
+    const height = bounds?.height ?? 200
+    const shape = createMockShapeNode({ width, height })
+    const text = createMockShapeTextbox({
+      text: `test text ${index + 1}`,
+      width,
+      fontSize: 30
+    })
+    const group = createMockShapeGroup({
+      shape,
+      text,
+      left: bounds ? bounds.left + (bounds.width / 2) : 480 + (index * 140),
+      top: bounds ? bounds.top + (bounds.height / 2) : 420,
+      width,
+      height
+    })
+
+    groups.push(group)
+    shapes.push(shape)
+    texts.push(text)
+    groupNodes.set(group, { shape, text })
+  }
+
+  return { groups, shapes, texts, groupNodes }
+}
+
+/** Создаёт ActiveSelection и наблюдаемые методы позиционирования его рамки. */
+function createShapeScalingActiveSelection({
+  canvas,
+  groups,
+  nonShapeObject
+}: {
+  canvas: ReturnType<typeof createMockCanvas>
+  groups: ShapeScalingTestGroup[]
+  nonShapeObject: FabricObject | null
+}): ActiveSelectionShapeScalingSelection {
+  const selectionObjects = nonShapeObject
+    ? [groups[0], nonShapeObject, groups[1]]
+    : groups
+  const selection = new ActiveSelection(selectionObjects as never[], {
+    canvas: canvas as never
+  }) as ActiveSelectionShapeScalingSelection
+  selection.getPositionByOrigin = jest.fn((
+    _originX: GroupOriginX,
+    _originY: GroupOriginY
+  ) => new Point(Number(selection.left) || 0, Number(selection.top) || 0))
+  selection.setPositionByOrigin = jest.fn((
+    point: Point,
+    _originX: GroupOriginX,
+    _originY: GroupOriginY
+  ) => {
+    selection.left = point.x
+    selection.top = point.y
+  })
+  selection.setCoords = jest.fn()
+
+  return selection
+}
+
+/** Настраивает getShapeNodes для групп текущего тестового выделения. */
+function mockActiveSelectionShapeNodes({
+  groupNodes
+}: {
+  groupNodes: ActiveSelectionShapeFixtures['groupNodes']
+}): void {
+  const getShapeNodesMock = getShapeNodes as jest.Mock
+
+  getShapeNodesMock.mockImplementation(({ group }: { group: ShapeScalingTestGroup }) => {
+    return groupNodes.get(group) ?? {
+      shape: null,
+      text: null
+    }
+  })
+}
+
 /**
- * Создаёт setup для ActiveSelection c несколькими shape-группами.
+ * Создаёт окружение ActiveSelection с несколькими группами шейпов.
  */
 export const createActiveSelectionShapeScalingSetup = ({
   includeNonShapeObject = false,
@@ -192,93 +292,31 @@ export const createActiveSelectionShapeScalingSetup = ({
   const controller = new ShapeScalingController({
     canvas: canvas as never
   })
-  const groups: ShapeScalingTestGroup[] = []
-  const shapes: Array<ReturnType<typeof createMockShapeNode>> = []
-  const texts: Array<ReturnType<typeof createMockShapeTextbox>> = []
-  const groupNodes = new Map<ShapeScalingTestGroup, {
-    shape: ReturnType<typeof createMockShapeNode>
-    text: ReturnType<typeof createMockShapeTextbox>
-  }>()
-
-  for (let index = 0; index < 2; index += 1) {
-    const bounds = shapeBounds?.[index]
-    const width = bounds?.width ?? 200
-    const height = bounds?.height ?? 200
-    const shape = createMockShapeNode({
-      width,
-      height
-    })
-    const text = createMockShapeTextbox({
-      text: `test text ${index + 1}`,
-      width,
-      fontSize: 30
-    })
-    const group = createMockShapeGroup({
-      shape,
-      text,
-      left: bounds
-        ? bounds.left + (bounds.width / 2)
-        : 480 + (index * 140),
-      top: bounds
-        ? bounds.top + (bounds.height / 2)
-        : 420,
-      width,
-      height
-    })
-
-    groups.push(group)
-    shapes.push(shape)
-    texts.push(text)
-    groupNodes.set(group, {
-      shape,
-      text
-    })
-  }
+  const fixtures = createActiveSelectionShapeFixtures({ shapeBounds })
 
   const nonShapeObject = includeNonShapeObject
-    ? {
-      setCoords: jest.fn(),
-      shapeComposite: false
-    }
+    ? new FabricObject({
+      height: 40,
+      left: 680,
+      shapeComposite: false,
+      top: 400,
+      width: 60
+    })
     : null
-  const selectionObjects = includeNonShapeObject && nonShapeObject
-    ? [groups[0], nonShapeObject, groups[1]]
-    : groups
-  const selection = new ActiveSelection(selectionObjects as never[], {
-    canvas: canvas as never
-  }) as ActiveSelectionShapeScalingSelection
-  selection.getPositionByOrigin = jest.fn((
-    _originX: GroupOriginX,
-    _originY: GroupOriginY
-  ) => new Point(
-    Number(selection.left) || 0,
-    Number(selection.top) || 0
-  ))
-  selection.setPositionByOrigin = jest.fn((
-    point: Point,
-    _originX: GroupOriginX,
-    _originY: GroupOriginY
-  ) => {
-    selection.left = point.x
-    selection.top = point.y
+  if (nonShapeObject) nonShapeObject.setCoords = jest.fn()
+  const selection = createShapeScalingActiveSelection({
+    canvas,
+    groups: fixtures.groups,
+    nonShapeObject
   })
-  selection.setCoords = jest.fn()
-
-  const getShapeNodesMock = getShapeNodes as jest.Mock
-
-  getShapeNodesMock.mockImplementation(({ group }: { group: ShapeScalingTestGroup }) => {
-    return groupNodes.get(group) ?? {
-      shape: null,
-      text: null
-    }
-  })
+  mockActiveSelectionShapeNodes({ groupNodes: fixtures.groupNodes })
 
   return {
     controller,
     canvas,
-    groups,
-    shapes,
-    texts,
+    groups: fixtures.groups,
+    shapes: fixtures.shapes,
+    texts: fixtures.texts,
     selection,
     nonShapeObject
   }

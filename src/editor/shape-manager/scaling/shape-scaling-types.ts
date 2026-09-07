@@ -37,17 +37,6 @@ export type ShapeScalingDecision = {
 }
 
 /**
- * Ограничения live scaling, вычисленные для текущего transform.
- */
-export type ShapeScalingConstraintState = {
-  shouldHandleAsNoop: boolean
-  shouldRestoreLastAllowedTransform: boolean
-  clampedScaleX: number | null
-  clampedScaleY: number | null
-  resolvedMinimumHeight: number | null
-}
-
-/**
  * Направление скейлинга по оси относительно начальной точки transform.
  */
 export type ShapeScaleDirection = -1 | 1
