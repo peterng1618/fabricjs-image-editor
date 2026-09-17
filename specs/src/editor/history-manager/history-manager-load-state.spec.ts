@@ -48,6 +48,21 @@ describe('loadStateFromFullState', () => {
     }))
   })
 
+  it('releases external resources before replacing the canvas graph', async() => {
+    const { historyManager, mockEditor } = createHistoryManagerTestSetup()
+    const beforeHistoryStateLoad = jest.fn()
+    mockEditor.options.beforeHistoryStateLoad = beforeHistoryStateLoad
+
+    await historyManager.loadStateFromFullState(createHistoryState({
+      objects: [{ id: 'montage-area', type: 'rect' }] as any[]
+    }))
+
+    expect(beforeHistoryStateLoad).toHaveBeenCalledWith(mockEditor.canvas)
+    expect(beforeHistoryStateLoad.mock.invocationCallOrder[0]).toBeLessThan(
+      mockEditor.canvas.loadFromJSON.mock.invocationCallOrder[0]
+    )
+  })
+
   it('сериализует customData для loadFromJSON и восстанавливает объект без мутации состояния', async() => {
     const { historyManager, mockEditor } = createHistoryManagerTestSetup()
     const customData = {

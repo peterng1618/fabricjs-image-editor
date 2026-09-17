@@ -693,6 +693,7 @@ export default class HistoryManager {
 
     const safeState = createLoadSafeState({ state: fullState })
 
+    await this.editor.options.beforeHistoryStateLoad?.(canvas)
     await canvas.loadFromJSON(safeState)
     applyCustomDataFromState({ state: fullState, canvas })
 

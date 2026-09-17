@@ -1,5 +1,5 @@
 import 'fabric/es'
-import type { FabricObject as FabricObjectInstance } from 'fabric/es'
+import type { Canvas as CanvasInstance, FabricObject as FabricObjectInstance } from 'fabric/es'
 import type { EditorFontDefinition } from './font'
 import { ImageEditor } from '..'
 
@@ -177,6 +177,8 @@ declare module 'fabric/es' {
      * Коллбэк получает только клон и не должен менять исходный объект.
      */
     prepareObjectClone?: (object: FabricObjectInstance) => void
+    /** Releases external object resources before history replaces the canvas graph. */
+    beforeHistoryStateLoad?: (canvas: CanvasInstance) => void | Promise<void>
     /**
      * Коллбэк, который будет вызван при готовности редактора.
      * Используется для выполнения действий после полной инициализации редактора.
