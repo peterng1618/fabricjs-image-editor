@@ -5,7 +5,7 @@ import {
   type FabricObject,
   type TMat2D,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import type CanvasManager from '../../canvas-manager'
 import type { ObjectPlacement } from '../../canvas-manager'
 import {

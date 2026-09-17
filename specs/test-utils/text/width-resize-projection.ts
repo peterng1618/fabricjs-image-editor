@@ -1,4 +1,4 @@
-import { Point, type Transform } from 'fabric'
+import { Point, type Transform } from 'fabric/es'
 import { BackgroundTextbox } from '../../../src/editor/text-manager/background-textbox'
 import type { EditorTextbox } from '../../../src/editor/text-manager/types'
 import type { ObjectBounds } from '../../../src/editor/utils/geometry'

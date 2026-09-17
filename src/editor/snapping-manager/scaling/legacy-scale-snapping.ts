@@ -4,7 +4,7 @@ import {
   Textbox,
   Transform,
   TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 
 import type {
   AnchorBuckets,

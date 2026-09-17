@@ -1,4 +1,4 @@
-import type { TPointerEventInfo, TPointerEvent } from 'fabric'
+import type { TPointerEventInfo, TPointerEvent } from 'fabric/es'
 
 export const ptr = <T extends TPointerEvent>(e: T): TPointerEventInfo<T> => ({ e } as unknown as TPointerEventInfo<T>)
 

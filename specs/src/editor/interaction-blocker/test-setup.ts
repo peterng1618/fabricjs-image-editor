@@ -1,4 +1,4 @@
-import { Rect } from 'fabric'
+import { Rect } from 'fabric/es'
 import InteractionBlocker from '../../../../src/editor/interaction-blocker'
 import { addRectangleToCanvas } from '../../../../src/editor/utils/primitive-shapes'
 

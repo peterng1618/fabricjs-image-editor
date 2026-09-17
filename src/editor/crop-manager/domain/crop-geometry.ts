@@ -4,7 +4,7 @@ import {
   util,
   type FabricObject,
   type Rect
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   CANVAS_MAX_HEIGHT,

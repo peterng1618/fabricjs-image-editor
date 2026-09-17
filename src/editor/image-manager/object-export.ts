@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define -- Публичный entrypoint держим выше внутренних деталей экспорта. */
-import { FabricImage, type FabricObject } from 'fabric'
+import { FabricImage, type FabricObject } from 'fabric/es'
 
 import type {
   ExportObjectAsImageFileParameters,

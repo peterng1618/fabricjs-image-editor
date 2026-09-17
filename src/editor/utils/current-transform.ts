@@ -3,7 +3,7 @@ import {
   type Canvas,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 /**
  * Проверяет, затрагивает ли удаление объектов текущее преобразование Fabric.

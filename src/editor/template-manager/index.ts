@@ -5,7 +5,7 @@ import {
   Textbox,
   loadSVGFromString,
   util
-} from 'fabric'
+} from 'fabric/es'
 import { nanoid } from 'nanoid'
 
 import type { ImageEditor } from '../index'

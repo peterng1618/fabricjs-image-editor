@@ -3,7 +3,7 @@ import {
   FabricObject,
   TPointerEvent,
   TPointerEventInfo
-} from 'fabric'
+} from 'fabric/es'
 
 import { ImageEditor } from '..'
 import { getObjectExactBounds } from '../utils/geometry'

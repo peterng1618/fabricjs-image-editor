@@ -9,7 +9,7 @@ import {
   type TOriginX,
   type TOriginY,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import { ImageEditor } from '../../../src/editor'
 import CanvasManager from '../../../src/editor/canvas-manager'

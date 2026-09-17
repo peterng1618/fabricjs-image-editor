@@ -1,4 +1,4 @@
-import { ActiveSelection, type FabricObject } from 'fabric'
+import { ActiveSelection, type FabricObject } from 'fabric/es'
 
 export const IGNORED_IDS = ['montage-area', 'background', 'interaction-blocker']
 

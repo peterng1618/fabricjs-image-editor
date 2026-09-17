@@ -2,7 +2,7 @@
 import type {
   FabricObject,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import type {
   CropRect,

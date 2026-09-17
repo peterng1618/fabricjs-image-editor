@@ -1,4 +1,4 @@
-import { Textbox } from 'fabric'
+import { Textbox } from 'fabric/es'
 import SnappingManager from '../../../../src/editor/snapping-manager'
 import {
   calculateHorizontalSpacing,

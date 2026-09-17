@@ -4,7 +4,7 @@ import {
   type FabricObject,
   type TPointerEvent,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../..'
 import { getObjectExactBounds, type ObjectBounds } from '../../utils/geometry'
 import {

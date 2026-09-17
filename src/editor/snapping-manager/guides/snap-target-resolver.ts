@@ -1,4 +1,4 @@
-import type { Canvas, FabricObject } from 'fabric'
+import type { Canvas, FabricObject } from 'fabric/es'
 
 import {
   getObjectBounds,

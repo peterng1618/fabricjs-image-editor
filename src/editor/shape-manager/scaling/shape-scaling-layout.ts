@@ -1,4 +1,4 @@
-import type { Transform } from 'fabric'
+import type { Transform } from 'fabric/es'
 import {
   applyFixedWidthShapeTextLayout,
   applyShapeTextLayout,

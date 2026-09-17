@@ -1,4 +1,4 @@
-import type { Rect } from 'fabric'
+import type { Rect } from 'fabric/es'
 
 export type InteractionBlockerOverlay = 'default' | 'ai-generation'
 

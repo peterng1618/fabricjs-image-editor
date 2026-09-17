@@ -1,4 +1,4 @@
-import { FabricObject, Point } from 'fabric'
+import { FabricObject, Point } from 'fabric/es'
 import { ImageEditor } from '../index'
 
 import {

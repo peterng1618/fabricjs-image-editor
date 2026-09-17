@@ -6,7 +6,7 @@ import {
   Textbox,
   type BasicTransformEvent,
   type TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 import SnappingManager from '../../../src/editor/snapping-manager'
 import { MovementSnappingController } from '../../../src/editor/snapping-manager/movement/movement-snapping-controller'
 import { ShapeGroupObject } from '../../../src/editor/shape-manager/domain/shape-group'

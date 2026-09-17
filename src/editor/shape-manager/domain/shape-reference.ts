@@ -1,8 +1,8 @@
 import {
   FabricObject,
   Group
-} from 'fabric'
-import type { Canvas } from 'fabric'
+} from 'fabric/es'
+import type { Canvas } from 'fabric/es'
 import { ShapeGroupObject } from './shape-group'
 import type { ShapeGroup, ShapeReference } from '../types'
 

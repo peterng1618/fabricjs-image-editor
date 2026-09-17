@@ -6,7 +6,7 @@ import {
   util,
   type Abortable,
   type LayoutStrategy
-} from 'fabric'
+} from 'fabric/es'
 import {
   getShapePreset,
   isShapePresetRoundable,

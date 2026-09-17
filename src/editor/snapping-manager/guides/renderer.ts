@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define -- Публичные renderer-функции расположены перед внутренними примитивами. */
-import type { Canvas } from 'fabric'
+import type { Canvas } from 'fabric/es'
 
 import { GUIDE_COLOR, GUIDE_WIDTH } from '../constants'
 import type {

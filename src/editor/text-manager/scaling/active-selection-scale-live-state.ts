@@ -3,7 +3,7 @@ import {
   type ActiveSelection,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import { cloneLineFontDefaults } from '../line-defaults'
 import type {

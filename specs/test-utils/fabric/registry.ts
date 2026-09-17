@@ -1,4 +1,4 @@
-import { Point, Textbox } from 'fabric'
+import { Point, Textbox } from 'fabric/es'
 
 /**
  * Добавляет недостающие методы в mock-классы Fabric для тестов.

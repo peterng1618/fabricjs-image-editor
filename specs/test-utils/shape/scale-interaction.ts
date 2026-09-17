@@ -4,7 +4,7 @@ import {
   Rect,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import { ImageEditor } from '../../../src/editor'
 import SnappingManager from '../../../src/editor/snapping-manager'
 import type { ScaleSnapEnvironment } from '../../../src/editor/snapping-manager/scaling/scale-snap-candidates'

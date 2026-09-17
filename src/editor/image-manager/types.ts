@@ -4,7 +4,7 @@ import type {
   FabricImage,
   FabricObject,
   Rect
-} from 'fabric'
+} from 'fabric/es'
 
 /** Успешный результат импорта изображения. */
 export type SuccessulImageImportResult = {

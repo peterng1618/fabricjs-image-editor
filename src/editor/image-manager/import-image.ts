@@ -4,7 +4,7 @@ import {
   FabricObject,
   loadSVGFromURL,
   util
-} from 'fabric'
+} from 'fabric/es'
 import { nanoid } from 'nanoid'
 
 import {

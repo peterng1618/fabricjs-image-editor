@@ -1,4 +1,4 @@
-import { CanvasOptions } from 'fabric'
+import { CanvasOptions } from 'fabric/es'
 import defaultFonts from './default-fonts'
 
 export const defaults: Partial<CanvasOptions> = {

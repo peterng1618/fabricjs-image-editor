@@ -1,4 +1,4 @@
-import { ActiveSelection, FabricObject } from 'fabric'
+import { ActiveSelection, FabricObject } from 'fabric/es'
 import { ImageEditor } from '../..'
 import {
   copyPasteIcon,

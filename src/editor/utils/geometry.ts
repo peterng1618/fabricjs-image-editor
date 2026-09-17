@@ -1,4 +1,4 @@
-import { Point, Textbox, type FabricObject } from 'fabric'
+import { Point, Textbox, type FabricObject } from 'fabric/es'
 
 /** Размер объекта в координатах его текущего геометрического контракта. */
 export type Dimensions = {

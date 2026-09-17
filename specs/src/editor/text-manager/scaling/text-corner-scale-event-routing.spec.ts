@@ -1,4 +1,4 @@
-import { Point } from 'fabric'
+import { Point } from 'fabric/es'
 import TextCornerScaleInteractionController from '../../../../../src/editor/text-manager/scaling/text-corner-scale-interaction-controller'
 import { createTextManagerTestSetup } from '../../../../test-utils/text/manager-setup'
 import { createTextScalingTransform } from '../../../../test-utils/text/scaling'

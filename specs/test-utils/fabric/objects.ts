@@ -1,7 +1,7 @@
 import {
   ActiveSelection,
   Group
-} from 'fabric'
+} from 'fabric/es'
 
 /**
  * Возвращает глубокую копию customData, если объект хранит её как plain object.

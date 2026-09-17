@@ -1,7 +1,7 @@
 import {
   Point,
   type TextStyleDeclaration
-} from 'fabric'
+} from 'fabric/es'
 import type CanvasManager from '../../canvas-manager'
 import type { ObjectPlacement } from '../../canvas-manager'
 import type { LineFontDefaults } from '../background-textbox'

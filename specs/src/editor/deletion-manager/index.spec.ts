@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 import DeletionManager from '../../../../src/editor/deletion-manager'
 import { createManagerTestMocks } from '../../../test-utils/editor/manager-test-mocks'
 import { createMockFabricObject, createMockGroup } from '../../../test-utils/fabric/objects'

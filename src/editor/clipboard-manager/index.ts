@@ -1,4 +1,4 @@
-import { ActiveSelection, FabricObject, Group } from 'fabric'
+import { ActiveSelection, FabricObject, Group } from 'fabric/es'
 import { CLIPBOARD_DATA_PREFIX, CLIPBOARD_CLONE_OBJECT_KEYS } from '../constants'
 
 import { ImageEditor } from '../index'

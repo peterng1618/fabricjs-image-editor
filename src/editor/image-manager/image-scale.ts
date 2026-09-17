@@ -2,7 +2,7 @@ import type {
   FabricImage,
   FabricObject,
   Rect
-} from 'fabric'
+} from 'fabric/es'
 
 /** Режим масштабирования, который влияет на расчёт scale factor. */
 export type ImageScaleType = 'contain' | 'cover' | 'image-contain' | 'image-cover'

@@ -1,4 +1,4 @@
-import { Point, type Textbox, type TextboxProps } from 'fabric'
+import { Point, type Textbox, type TextboxProps } from 'fabric/es'
 import type { ObjectPlacement } from '../canvas-manager'
 import { DIMENSION_EPSILON } from './constants'
 import type { EditorTextbox } from './types'

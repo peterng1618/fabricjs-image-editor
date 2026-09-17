@@ -1,4 +1,4 @@
-import { ActiveSelection, CanvasOptions, FabricObject } from 'fabric'
+import { ActiveSelection, CanvasOptions, FabricObject } from 'fabric/es'
 import { ImageEditor } from '../index'
 
 import {

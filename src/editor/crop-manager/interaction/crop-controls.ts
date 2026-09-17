@@ -5,7 +5,7 @@ import {
   type FabricObject,
   type Rect,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   getCropRectInSource,

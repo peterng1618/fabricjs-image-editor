@@ -1,4 +1,4 @@
-import { Group, Rect, Textbox } from 'fabric'
+import { Group, Rect, Textbox } from 'fabric/es'
 import { ShapeGroupObject } from '../../../../src/editor/shape-manager/domain/shape-group'
 import {
   getShapeNode,

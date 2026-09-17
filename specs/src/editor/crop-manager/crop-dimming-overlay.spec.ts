@@ -1,7 +1,7 @@
 import {
   Rect,
   type Canvas
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   CropDimmingOverlay,

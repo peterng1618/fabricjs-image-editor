@@ -1,4 +1,4 @@
-import { loadSVGFromURL } from 'fabric'
+import { loadSVGFromURL } from 'fabric/es'
 import ImageManager from '../../../../src/editor/image-manager'
 import type { CanvasFullState } from '../../../../src/editor/history-manager'
 import {

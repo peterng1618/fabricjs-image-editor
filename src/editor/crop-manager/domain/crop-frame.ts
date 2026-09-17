@@ -4,7 +4,7 @@ import {
   Rect,
   type FabricObject,
   type RectProps
-} from 'fabric'
+} from 'fabric/es'
 import { nanoid } from 'nanoid'
 
 import { applyCropResizeControls } from '../interaction/crop-controls'

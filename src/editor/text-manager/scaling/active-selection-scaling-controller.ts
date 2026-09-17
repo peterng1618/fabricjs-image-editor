@@ -4,7 +4,7 @@ import {
   type Canvas,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import type CanvasManager from '../../canvas-manager'
 import type {
   RectangularScaleGestureMode,

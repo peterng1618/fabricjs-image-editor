@@ -1,4 +1,4 @@
-import { FabricObject, ActiveSelection, Canvas } from 'fabric'
+import { FabricObject, ActiveSelection, Canvas } from 'fabric/es'
 import { ImageEditor } from '../index'
 
 export default class LayerManager {

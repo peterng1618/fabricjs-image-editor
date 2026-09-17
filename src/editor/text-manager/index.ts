@@ -5,7 +5,7 @@ import {
   Point,
   Textbox,
   util
-} from 'fabric'
+} from 'fabric/es'
 import type {
   BasicTransformEvent,
   ModifiedEvent,
@@ -13,7 +13,7 @@ import type {
   TPointerEvent,
   TPointerEventInfo,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 import { nanoid } from 'nanoid'
 import { ImageEditor } from '../index'
 import type { ObjectPlacement } from '../canvas-manager'

@@ -6,7 +6,7 @@ import {
   Transform,
   TPointerEvent,
   TPointerEventInfo
-} from 'fabric'
+} from 'fabric/es'
 
 import { ImageEditor } from '..'
 import {

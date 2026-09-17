@@ -1,4 +1,4 @@
-import { FabricImage } from 'fabric'
+import { FabricImage } from 'fabric/es'
 import ImageManager from '../../../src/editor/image-manager'
 import { createManagerTestMocks } from '../editor/manager-test-mocks'
 

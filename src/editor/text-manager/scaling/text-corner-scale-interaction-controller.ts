@@ -3,7 +3,7 @@ import {
   type Control,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../..'
 import {
   getObjectExactBounds,

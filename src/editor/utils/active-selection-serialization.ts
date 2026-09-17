@@ -2,7 +2,7 @@ import {
   ActiveSelection,
   type FabricObject,
   util
-} from 'fabric'
+} from 'fabric/es'
 
 /**
  * Выполняет сериализацию дочернего объекта с временно применённым преобразованием ActiveSelection.

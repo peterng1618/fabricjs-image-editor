@@ -1,7 +1,7 @@
 import type {
   TextStyle,
   TextStyleDeclaration
-} from 'fabric'
+} from 'fabric/es'
 import type {
   LineFontDefault,
   LineFontDefaults

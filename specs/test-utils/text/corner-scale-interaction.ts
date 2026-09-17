@@ -4,7 +4,7 @@ import {
   controlsUtils,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import { ImageEditor } from '../../../src/editor'
 import CanvasManager from '../../../src/editor/canvas-manager'
 import SnappingManager from '../../../src/editor/snapping-manager'

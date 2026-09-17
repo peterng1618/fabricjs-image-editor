@@ -1,9 +1,9 @@
-import 'fabric'
-import type { FabricObject as FabricObjectInstance } from 'fabric'
+import 'fabric/es'
+import type { FabricObject as FabricObjectInstance } from 'fabric/es'
 import type { EditorFontDefinition } from './font'
 import { ImageEditor } from '..'
 
-declare module 'fabric' {
+declare module 'fabric/es' {
   interface Canvas {
     /**
      * Контейнер редактора, в котором будет создан канвас.

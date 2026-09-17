@@ -1,4 +1,4 @@
-import { ActiveSelection, FabricObject, Point } from 'fabric'
+import { ActiveSelection, FabricObject, Point } from 'fabric/es'
 import ShapeScalingController from '../../../src/editor/shape-manager/scaling/shape-scaling-controller'
 import { getShapeNodes } from '../../../src/editor/shape-manager/domain/shape-nodes'
 import type { ShapeScalingState } from '../../../src/editor/shape-manager/types'

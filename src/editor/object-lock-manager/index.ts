@@ -1,4 +1,4 @@
-import { FabricObject, ActiveSelection, Group, Textbox } from 'fabric'
+import { FabricObject, ActiveSelection, Group, Textbox } from 'fabric/es'
 import { ImageEditor } from '../index'
 import { resolveShapeGroupFromTarget } from '../shape-manager/domain/shape-reference'
 

@@ -54,7 +54,7 @@
     "vue-eslint-parser": "^10.4.0"
   },
   "dependencies": {
-    "fabric": "^7.2.0",
+    "fabric": "7.4.0",
     "jsondiffpatch": "^0.7.3",
     "jspdf": "^4.2.1",
     "nanoid": "^5.1.7"

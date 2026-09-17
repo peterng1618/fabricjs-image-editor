@@ -2,7 +2,7 @@ import {
   Rect,
   util,
   type FabricObject
-} from 'fabric'
+} from 'fabric/es'
 
 import { getShapeNodes } from '../domain/shape-nodes'
 import type {

@@ -1,4 +1,4 @@
-import { ActiveSelection, Textbox } from 'fabric'
+import { ActiveSelection, Textbox } from 'fabric/es'
 import HistoryManager from '../../../src/editor/history-manager'
 import TextManager from '../../../src/editor/text-manager'
 import type { EditorFontDefinition } from '../../../src/editor/types/font'

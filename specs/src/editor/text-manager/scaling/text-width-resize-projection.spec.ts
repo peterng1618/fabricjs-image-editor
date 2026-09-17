@@ -1,4 +1,4 @@
-import { Path } from 'fabric'
+import { Path } from 'fabric/es'
 import {
   createScaleProjection,
   projectScaleEdgePositions

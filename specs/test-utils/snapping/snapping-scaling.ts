@@ -1,7 +1,7 @@
 import type {
   FabricObject,
   TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 
 import type { Bounds } from '../../../src/editor/snapping-manager/types'
 

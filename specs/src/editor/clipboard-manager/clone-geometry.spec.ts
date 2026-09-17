@@ -1,4 +1,4 @@
-import { Group, Rect } from 'fabric'
+import { Group, Rect } from 'fabric/es'
 
 import { setupBrowserMocks } from '../../../test-utils/browser/clipboard-globals'
 import { createManagerTestMocks } from '../../../test-utils/editor/manager-test-mocks'

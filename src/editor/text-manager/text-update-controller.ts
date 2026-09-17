@@ -1,7 +1,7 @@
 import type {
   Canvas,
   TextboxProps
-} from 'fabric'
+} from 'fabric/es'
 import type { ObjectPlacement } from '../canvas-manager'
 import type { ImageEditor } from '../index'
 import type { TextSelectionRange } from '../utils/text'

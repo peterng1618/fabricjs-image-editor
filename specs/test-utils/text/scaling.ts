@@ -2,7 +2,7 @@ import {
   Point,
   controlsUtils,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import { BackgroundTextbox } from '../../../src/editor/text-manager/background-textbox'
 import TextScalingController from '../../../src/editor/text-manager/scaling/text-scaling'
 import { createTextManagerTestSetup } from '../text/manager-setup'

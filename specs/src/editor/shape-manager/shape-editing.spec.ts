@@ -1,4 +1,4 @@
-import { Group } from 'fabric'
+import { Group } from 'fabric/es'
 import ShapeEditingController from '../../../../src/editor/shape-manager/editing/shape-editing-controller'
 import * as shapeRuntime from '../../../../src/editor/shape-manager/domain/shape-runtime'
 import {

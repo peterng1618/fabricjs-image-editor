@@ -8,7 +8,7 @@ import {
   controlsUtils,
   type FabricObject,
   type StrictLayoutContext
-} from 'fabric'
+} from 'fabric/es'
 import { DEFAULT_CONTROLS } from './default-controls'
 import { applyShapeCornerFreeScaleControls } from '../shape-manager/scaling/shape-controls'
 

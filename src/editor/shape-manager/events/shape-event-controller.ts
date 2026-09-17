@@ -6,7 +6,7 @@ import {
   util,
   type TMat2D,
   type TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 import type { ObjectPlacement } from '../../canvas-manager'
 import type { ImageEditor } from '../../index'
 import type ShapeEditingController from '../editing/shape-editing-controller'
@@ -55,7 +55,7 @@ type ShapeCanvasEvent = {
     y: number
   }
   subTargets?: FabricObject[]
-  transform?: import('fabric').Transform | null
+  transform?: import('fabric/es').Transform | null
 }
 
 /**

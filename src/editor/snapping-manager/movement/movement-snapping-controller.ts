@@ -7,7 +7,7 @@ import {
   type BasicTransformEvent,
   type FabricObject,
   type TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 
 import type { ImageEditor } from '../..'
 import {

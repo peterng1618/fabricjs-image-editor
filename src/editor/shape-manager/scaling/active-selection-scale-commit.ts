@@ -1,7 +1,7 @@
 import type {
   ActiveSelection,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   SHAPE_DEFAULT_HORIZONTAL_ALIGN,

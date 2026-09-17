@@ -1,4 +1,4 @@
-import { Textbox } from 'fabric'
+import { Textbox } from 'fabric/es'
 import type {
   ShapeGroupLike,
   ShapeNode,

@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 import { BackgroundTextbox } from '../../../../src/editor/text-manager/background-textbox'
 import * as textGeometry from '../../../../src/editor/text-manager/geometry'
 import {

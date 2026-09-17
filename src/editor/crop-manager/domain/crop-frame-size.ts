@@ -1,4 +1,4 @@
-import type { FabricObject } from 'fabric'
+import type { FabricObject } from 'fabric/es'
 
 import type { CropSize } from '../types'
 

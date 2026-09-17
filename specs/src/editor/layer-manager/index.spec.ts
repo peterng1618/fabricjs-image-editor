@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 import LayerManager from '../../../../src/editor/layer-manager'
 import { createManagerTestMocks } from '../../../test-utils/editor/manager-test-mocks'
 import { createTestObjects, getObjectOrder } from '../../../test-utils/managers/layer'

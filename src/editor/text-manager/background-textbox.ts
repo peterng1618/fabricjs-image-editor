@@ -11,7 +11,7 @@ import {
   type TOptions,
   type TextboxProps,
   classRegistry
-} from 'fabric'
+} from 'fabric/es'
 import { resolveStrokeColor, resolveStrokeWidth } from '../utils/text'
 import {
   rehydrateTextboxLineDefaults,

@@ -2,7 +2,7 @@ import {
   Point,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../../index'
 import {
   getObjectExactBounds,

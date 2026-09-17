@@ -1,5 +1,5 @@
 import '../../../test-utils/shape/manager-module-mocks'
-import { Textbox } from 'fabric'
+import { Textbox } from 'fabric/es'
 import ShapeManager from '../../../../src/editor/shape-manager'
 import {
   applyShapeTextLayoutToMockGroup,

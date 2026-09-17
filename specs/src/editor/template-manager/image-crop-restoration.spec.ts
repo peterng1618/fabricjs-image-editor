@@ -1,4 +1,4 @@
-import { util } from 'fabric'
+import { util } from 'fabric/es'
 import { nanoid } from 'nanoid'
 
 import type { TemplateDefinition } from '../../../../src/editor/template-manager'

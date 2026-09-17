@@ -3,7 +3,7 @@ import {
   Group,
   Point,
   util
-} from 'fabric'
+} from 'fabric/es'
 import {
   applyRotatedActiveSelectionShapeGeometry,
   captureActiveSelectionCommittedFrame,

@@ -1,4 +1,4 @@
-import { Textbox, type TextboxProps } from 'fabric'
+import { Textbox, type TextboxProps } from 'fabric/es'
 
 export type TextSelectionRange = {
   start: number

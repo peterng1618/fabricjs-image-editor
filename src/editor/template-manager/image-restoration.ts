@@ -2,7 +2,7 @@ import {
   FabricImage,
   FabricObject,
   Point
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   toNumber,

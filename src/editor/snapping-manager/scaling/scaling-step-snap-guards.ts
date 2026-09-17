@@ -2,7 +2,7 @@
 import {
   FabricObject,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   getObjectBounds,

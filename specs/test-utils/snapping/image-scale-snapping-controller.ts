@@ -4,7 +4,7 @@ import {
   Point,
   controlsUtils,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import { ImageEditor } from '../../../src/editor'
 import {

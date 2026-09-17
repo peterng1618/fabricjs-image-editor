@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 
 import ShapeManager from '../../../src/editor/shape-manager'
 import type {

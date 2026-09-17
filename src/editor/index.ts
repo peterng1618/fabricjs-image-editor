@@ -1,4 +1,4 @@
-import { Canvas, Pattern, Point, Rect, CanvasOptions } from 'fabric'
+import { Canvas, Pattern, Point, Rect, CanvasOptions } from 'fabric/es'
 import { nanoid } from 'nanoid'
 
 import Listeners from './listeners'

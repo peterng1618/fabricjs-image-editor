@@ -8,7 +8,7 @@ import {
   type Transform,
   type TPointerEvent,
   type TPointerEventInfo
-} from 'fabric'
+} from 'fabric/es'
 
 import type { ImageEditor } from '../index'
 import { errorCodes } from '../error-manager/error-codes'

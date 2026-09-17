@@ -1,4 +1,4 @@
-import type { Control } from 'fabric'
+import type { Control } from 'fabric/es'
 import { renderSquare, renderVerticalRect, renderHorizontalRect, renderRotationControl } from './renderers'
 
 import {

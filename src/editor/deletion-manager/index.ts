@@ -1,4 +1,4 @@
-import { FabricObject, Group } from 'fabric'
+import { FabricObject, Group } from 'fabric/es'
 import { ImageEditor } from '../index'
 import type {
   ObjectsDeletedPayload,

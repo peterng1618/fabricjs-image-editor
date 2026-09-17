@@ -1,4 +1,4 @@
-import { ActiveSelection, Point } from 'fabric'
+import { ActiveSelection, Point } from 'fabric/es'
 
 type PlacementOriginX = 'left' | 'center' | 'right'
 type PlacementOriginY = 'top' | 'center' | 'bottom'

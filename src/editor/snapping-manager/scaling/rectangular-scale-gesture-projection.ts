@@ -1,7 +1,7 @@
 import {
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import type { ObjectBounds } from '../../utils/geometry'
 import type {
   ScaleProjectionVariable,

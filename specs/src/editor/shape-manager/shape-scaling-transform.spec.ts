@@ -1,4 +1,4 @@
-import type { Transform } from 'fabric'
+import type { Transform } from 'fabric/es'
 import { resolveShapeScaleActionAxes } from '../../../../src/editor/shape-manager/scaling/shape-scaling-transform'
 
 describe('определение осей скейлинга шейпа', () => {

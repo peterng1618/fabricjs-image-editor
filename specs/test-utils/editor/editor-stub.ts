@@ -1,5 +1,5 @@
-import { Point } from 'fabric'
-import type { FabricObject } from 'fabric'
+import { Point } from 'fabric/es'
+import type { FabricObject } from 'fabric/es'
 import { createCanvasStub } from '../canvas/canvas-stub'
 
 type PlacementOriginX = 'left' | 'center' | 'right'

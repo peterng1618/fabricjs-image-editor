@@ -6,7 +6,7 @@ import type {
   TPointerEvent,
   TPointerEventInfo,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../..'
 import CursorIndicator from '../cursor-indicator'
 import { OBJECT_SIZE_INDICATOR_CLASS } from './constants'

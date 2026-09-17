@@ -4,7 +4,7 @@ import {
   controlsUtils,
   type Transform,
   type TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 import {
   applyShapeCornerFreeScaleControls,
   isShapeCornerScaleControl,

@@ -1,4 +1,4 @@
-import type { Transform } from 'fabric'
+import type { Transform } from 'fabric/es'
 import type CanvasManager from '../../canvas-manager'
 import type { ObjectPlacement } from '../../canvas-manager'
 import { getObjectExactBounds, type ObjectBounds } from '../../utils/geometry'

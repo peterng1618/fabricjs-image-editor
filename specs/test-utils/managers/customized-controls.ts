@@ -4,7 +4,7 @@ import {
   InteractiveFabricObject,
   Textbox,
   controlsUtils
-} from 'fabric'
+} from 'fabric/es'
 import ControlsCustomizer from '../../../src/editor/customized-controls'
 
 type RotateControl = Control & {

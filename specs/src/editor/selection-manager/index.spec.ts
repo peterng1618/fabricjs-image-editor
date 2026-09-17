@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 import SelectionManager from '../../../../src/editor/selection-manager'
 import { BackgroundTextbox } from '../../../../src/editor/text-manager/background-textbox'
 import { emitCanvasEvent } from '../../../test-utils/canvas/events'

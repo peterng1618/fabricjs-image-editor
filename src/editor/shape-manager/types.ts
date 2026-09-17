@@ -1,4 +1,4 @@
-import type { FabricObject, Group } from 'fabric'
+import type { FabricObject, Group } from 'fabric/es'
 import type { TextStyleOptions } from '../text-manager'
 import type { EditorTextbox, TextboxSnapshot } from '../text-manager/types'
 
@@ -389,5 +389,5 @@ export type ShapeScalingState = {
 }
 
 export type ShapeEditingOptions = {
-  canvas: import('fabric').Canvas
+  canvas: import('fabric/es').Canvas
 }

@@ -1,4 +1,4 @@
-import { CanvasOptions } from 'fabric'
+import { CanvasOptions } from 'fabric/es'
 import { ImageEditor } from './editor'
 import { defaults } from './editor/defaults'
 

@@ -1,4 +1,4 @@
-import { FabricObject } from 'fabric'
+import { FabricObject } from 'fabric/es'
 
 import type { ImageEditor } from '../index'
 import { errorCodes } from '../error-manager/error-codes'

@@ -3,7 +3,7 @@ import {
   Point,
   Transform,
   type FabricObject
-} from 'fabric'
+} from 'fabric/es'
 import type {
   ShapeGroup,
   ShapeScalingState,

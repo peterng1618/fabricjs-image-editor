@@ -1,4 +1,4 @@
-import { Point } from 'fabric'
+import { Point } from 'fabric/es'
 import {
   createShapeOwnedScalingTextbox,
   createStyledScalingTextbox,

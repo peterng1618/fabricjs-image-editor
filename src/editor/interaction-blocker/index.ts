@@ -1,4 +1,4 @@
-import { Rect } from 'fabric'
+import { Rect } from 'fabric/es'
 import { ImageEditor } from '../index'
 import { addRectangleToCanvas } from '../utils/primitive-shapes'
 import {

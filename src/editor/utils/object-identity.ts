@@ -1,4 +1,4 @@
-import { ActiveSelection, FabricObject, Group } from 'fabric'
+import { ActiveSelection, FabricObject, Group } from 'fabric/es'
 import { nanoid } from 'nanoid'
 
 type IdentityMaterializationEntry = {

@@ -1,4 +1,4 @@
-import { CanvasOptions, FabricObject, FabricImage } from 'fabric'
+import { CanvasOptions, FabricObject, FabricImage } from 'fabric/es'
 
 import BlobUrlRegistry from './blob-url-registry'
 import {

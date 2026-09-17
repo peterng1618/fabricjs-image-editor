@@ -5,7 +5,7 @@ import {
   util,
   type Canvas,
   type FabricObject
-} from 'fabric'
+} from 'fabric/es'
 
 /** Цвет затемнения вне активной crop-области. */
 const CROP_DIMMING_OVERLAY_FILL = '#000000'

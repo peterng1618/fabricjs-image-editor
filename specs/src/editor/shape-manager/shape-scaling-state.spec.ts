@@ -1,4 +1,4 @@
-import { Canvas } from 'fabric'
+import { Canvas } from 'fabric/es'
 import ShapeScalingController from '../../../../src/editor/shape-manager/scaling/shape-scaling-controller'
 import type { ShapeGroup } from '../../../../src/editor/shape-manager/types'
 import { createShapeScaleInteractionHarness } from '../../../test-utils/shape/scale-interaction'

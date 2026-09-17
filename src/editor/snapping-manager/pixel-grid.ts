@@ -4,7 +4,7 @@ import {
   FabricObject,
   Textbox,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import {
   resolveGuardedScalingStep,

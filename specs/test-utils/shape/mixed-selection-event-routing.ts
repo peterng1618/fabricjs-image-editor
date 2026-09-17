@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 
 import { BackgroundTextbox } from '../../../src/editor/text-manager/background-textbox'
 import { createMockFabricImage } from '../managers/image'

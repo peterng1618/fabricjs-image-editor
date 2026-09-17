@@ -1,4 +1,4 @@
-import { Control, Textbox, classRegistry, util } from 'fabric'
+import { Control, Textbox, classRegistry, util } from 'fabric/es'
 import { ShapeGroupObject, registerShapeGroup } from '../../../../src/editor/shape-manager/domain/shape-group'
 import {
   createMockShapeNode,

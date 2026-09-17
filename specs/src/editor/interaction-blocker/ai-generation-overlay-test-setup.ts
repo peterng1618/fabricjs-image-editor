@@ -1,4 +1,4 @@
-import type { Canvas } from 'fabric'
+import type { Canvas } from 'fabric/es'
 import { AiGenerationOverlay } from '../../../../src/editor/interaction-blocker/ai-generation-overlay'
 
 export type RenderedOverlayArc = {

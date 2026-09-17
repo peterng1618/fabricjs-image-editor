@@ -1,7 +1,7 @@
 import type {
   ActiveSelection,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import type {
   RectangularScaleGestureMode,

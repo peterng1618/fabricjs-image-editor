@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 
 import { createTextManagerTestSetup } from '../../../../test-utils/text/manager-setup'
 

@@ -6,7 +6,7 @@ import {
   type TPointerEvent,
   type TPointerEventInfo,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 import { ImageEditor } from '../index'
 import ActiveSelectionScaleInteractionController, {
   type ActiveSelectionShapeCommitMode

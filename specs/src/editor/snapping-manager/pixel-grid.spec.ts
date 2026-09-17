@@ -1,4 +1,4 @@
-import type { Transform } from 'fabric'
+import type { Transform } from 'fabric/es'
 
 import { applyScalingStep } from '../../../../src/editor/snapping-manager/pixel-grid'
 import {

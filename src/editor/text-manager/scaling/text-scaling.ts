@@ -3,14 +3,14 @@ import {
   Canvas,
   FabricObject,
   Textbox
-} from 'fabric'
+} from 'fabric/es'
 import type {
   BasicTransformEvent,
   ModifiedEvent,
   TPointerEvent,
   TPointerEventInfo,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 import type CanvasManager from '../../canvas-manager'
 import type { ObjectPlacement } from '../../canvas-manager'
 import type { BackgroundTextboxProps } from '../background-textbox'

@@ -4,7 +4,7 @@ import type {
   CanvasOptions,
   FabricObject,
   TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../..'
 import CursorIndicator from '../cursor-indicator'
 import { ANGLE_INDICATOR_CLASS } from './constants'

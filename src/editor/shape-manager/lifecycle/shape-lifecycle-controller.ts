@@ -1,4 +1,4 @@
-import { Canvas } from 'fabric'
+import { Canvas } from 'fabric/es'
 import {
   SHAPE_DEFAULT_HORIZONTAL_ALIGN,
   SHAPE_DEFAULT_VERTICAL_ALIGN

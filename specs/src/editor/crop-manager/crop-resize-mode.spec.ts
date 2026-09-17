@@ -1,4 +1,4 @@
-import { Rect } from 'fabric'
+import { Rect } from 'fabric/es'
 
 import { resolveCropFrameResizePreserveAspectRatio } from '../../../../src/editor/crop-manager/domain/crop-resize-mode'
 

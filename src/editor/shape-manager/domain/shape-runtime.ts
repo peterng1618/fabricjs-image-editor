@@ -2,7 +2,7 @@ import {
   FabricObject,
   Group,
   Textbox
-} from 'fabric'
+} from 'fabric/es'
 import type {
   ShapeGroupLike,
   ShapeTextNode

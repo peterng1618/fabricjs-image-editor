@@ -1,4 +1,4 @@
-import { Rect, FabricImage, Gradient, FabricObject } from 'fabric'
+import { Rect, FabricImage, Gradient, FabricObject } from 'fabric/es'
 import { nanoid } from 'nanoid'
 import { ImageEditor } from '../index'
 import { addRectangleToCanvas } from '../utils/primitive-shapes'

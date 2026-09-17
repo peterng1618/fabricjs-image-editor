@@ -2,7 +2,7 @@ import {
   Control,
   Rect,
   type TPointerEvent
-} from 'fabric'
+} from 'fabric/es'
 
 import { applyCropResizeControls } from '../../../../src/editor/crop-manager/interaction/crop-controls'
 

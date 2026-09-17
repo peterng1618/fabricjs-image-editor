@@ -1,4 +1,4 @@
-import { Rect } from 'fabric'
+import { Rect } from 'fabric/es'
 
 import TextActiveSelectionScalingController from '../../../../../src/editor/text-manager/scaling/active-selection-scaling-controller'
 import {

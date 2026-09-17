@@ -1,4 +1,4 @@
-import { Group } from 'fabric'
+import { Group } from 'fabric/es'
 import ObjectLockManager from '../../../src/editor/object-lock-manager'
 import {
   createManagerTestMocks

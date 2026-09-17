@@ -1,7 +1,7 @@
 import {
   ActiveSelection,
   Point
-} from 'fabric'
+} from 'fabric/es'
 import ShapeEventController from '../../../../src/editor/shape-manager/events/shape-event-controller'
 import ShapeScaleInteractionController from '../../../../src/editor/shape-manager/scaling/shape-scale-interaction-controller'
 import { getRequiredCanvasHandler } from '../../../test-utils/canvas/handlers'

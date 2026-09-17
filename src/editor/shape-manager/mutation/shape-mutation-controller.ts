@@ -1,4 +1,4 @@
-import { ActiveSelection, type Canvas } from 'fabric'
+import { ActiveSelection, type Canvas } from 'fabric/es'
 import {
   DEFAULT_SHAPE_PRESET_KEY,
   SHAPE_DEFAULT_HORIZONTAL_ALIGN,

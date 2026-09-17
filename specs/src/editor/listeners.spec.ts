@@ -1,5 +1,5 @@
-import { ActiveSelection } from 'fabric'
-import type { TPointerEvent } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
+import type { TPointerEvent } from 'fabric/es'
 import Listeners from '../../../src/editor/listeners'
 import PanConstraintManager from '../../../src/editor/pan-constraint-manager'
 import { createEditorStub } from '../../test-utils/editor/editor-stub'

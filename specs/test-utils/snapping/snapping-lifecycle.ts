@@ -1,4 +1,4 @@
-import { ActiveSelection } from 'fabric'
+import { ActiveSelection } from 'fabric/es'
 import SnappingManager from '../../../src/editor/snapping-manager'
 import type {
   AnchorBuckets,

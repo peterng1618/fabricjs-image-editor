@@ -1,4 +1,4 @@
-import { Group, LayoutManager, Textbox } from 'fabric'
+import { Group, LayoutManager, Textbox } from 'fabric/es'
 import {
   applyShapeGroupInteractivity,
   detachShapeGroupAutoLayout,

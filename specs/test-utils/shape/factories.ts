@@ -1,4 +1,4 @@
-import { Group, Point } from 'fabric'
+import { Group, Point } from 'fabric/es'
 import type {
   ShapeNode,
   ShapeTextNode

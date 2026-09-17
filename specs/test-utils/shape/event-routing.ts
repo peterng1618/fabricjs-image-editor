@@ -1,4 +1,4 @@
-import { Rect } from 'fabric'
+import { Rect } from 'fabric/es'
 import SelectionManager from '../../../src/editor/selection-manager'
 import ShapeEventController from '../../../src/editor/shape-manager/events/shape-event-controller'
 import { ShapeGroupObject } from '../../../src/editor/shape-manager/domain/shape-group'

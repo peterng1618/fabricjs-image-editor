@@ -1,4 +1,4 @@
-import { Point } from 'fabric'
+import { Point } from 'fabric/es'
 import ZoomManager from '../../../../src/editor/zoom-manager'
 import { createManagerTestMocks } from '../../../test-utils/editor/manager-test-mocks'
 

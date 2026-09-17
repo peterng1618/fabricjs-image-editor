@@ -4,7 +4,7 @@ import {
   type FabricObject,
   type TOriginX,
   type TOriginY
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../../../src/editor'
 import type {
   RectangularScaleControlKey,

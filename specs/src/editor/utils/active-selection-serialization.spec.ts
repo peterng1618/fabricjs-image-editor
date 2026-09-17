@@ -2,7 +2,7 @@ import {
   ActiveSelection,
   FabricObject,
   util
-} from 'fabric'
+} from 'fabric/es'
 import { withActiveSelectionTransformForSerialization } from '../../../../src/editor/utils/active-selection-serialization'
 
 afterEach(() => {

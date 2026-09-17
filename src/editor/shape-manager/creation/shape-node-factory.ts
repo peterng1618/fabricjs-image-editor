@@ -9,7 +9,7 @@ import {
   Triangle,
   loadSVGFromString,
   util
-} from 'fabric'
+} from 'fabric/es'
 import { nanoid } from 'nanoid'
 import {
   ShapeFactoryInput,

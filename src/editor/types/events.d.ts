@@ -1,4 +1,4 @@
-import { FabricObject, FabricImage, Point } from 'fabric'
+import { FabricObject, FabricImage, Point } from 'fabric/es'
 import { ImageEditor } from '../index'
 import { GroupedObjectsData, UngroupedObjectsData } from '../grouping-manager'
 import type {
@@ -215,7 +215,7 @@ export type TemplateAppliedPayload = {
   }
 }
 
-declare module 'fabric' {
+declare module 'fabric/es' {
   interface CanvasEvents {
     /**
      * Срабатывает после успешной инициализации и рендера редактора.

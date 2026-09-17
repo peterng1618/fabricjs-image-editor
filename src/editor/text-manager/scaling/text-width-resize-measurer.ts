@@ -1,4 +1,4 @@
-import { Point } from 'fabric'
+import { Point } from 'fabric/es'
 import type { EditorTextbox } from '../types'
 import type { ScaleStepProjectionInput } from '../../snapping-manager/scaling/scale-snapping-resolver'
 import { applyCanonicalTextboxWidth } from './text-width-materialization'

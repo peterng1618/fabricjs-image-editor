@@ -4,7 +4,7 @@ import {
   type FabricImage,
   type FabricObject,
   type Rect
-} from 'fabric'
+} from 'fabric/es'
 
 import type { ImageEditor } from '../../index'
 import { MIN_CROP_FRAME_SIZE } from '../domain/crop-geometry'

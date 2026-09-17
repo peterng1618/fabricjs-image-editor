@@ -1,4 +1,4 @@
-import { FabricObject } from 'fabric'
+import { FabricObject } from 'fabric/es'
 import { createEditorStub } from '../editor/editor-stub'
 
 export type SelectionTestSetup = {

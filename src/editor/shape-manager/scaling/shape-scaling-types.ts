@@ -2,7 +2,7 @@ import type {
   Canvas,
   FabricObject,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 import type {
   ShapeScalingPointerEvent
 } from './shape-scaling-layout'

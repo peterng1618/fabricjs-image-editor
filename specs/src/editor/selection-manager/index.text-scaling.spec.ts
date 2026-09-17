@@ -1,4 +1,4 @@
-import { ActiveSelection, Rect } from 'fabric'
+import { ActiveSelection, Rect } from 'fabric/es'
 
 import SelectionManager from '../../../../src/editor/selection-manager'
 import ActiveSelectionScaleInteractionController from '../../../../src/editor/selection-manager/scaling/active-selection-scale-interaction-controller' // eslint-disable-line max-len

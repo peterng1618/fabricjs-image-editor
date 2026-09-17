@@ -1,4 +1,4 @@
-import { Control, Group } from 'fabric'
+import { Control, Group } from 'fabric/es'
 
 import type {
   RectangularScaleControlKey,

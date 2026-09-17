@@ -2,7 +2,7 @@ import {
   Canvas,
   FabricObject,
   Textbox
-} from 'fabric'
+} from 'fabric/es'
 import {
   ShapeGroup,
   ShapeTextNode

@@ -1,5 +1,5 @@
 import '../../../test-utils/shape/manager-module-mocks'
-import { Group } from 'fabric'
+import { Group } from 'fabric/es'
 import ShapeManager from '../../../../src/editor/shape-manager'
 import { getShapePreset } from '../../../../src/editor/shape-manager/domain/shape-presets'
 import {

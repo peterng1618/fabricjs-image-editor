@@ -2,7 +2,7 @@ import {
   Rect,
   type Canvas,
   type FabricObject
-} from 'fabric'
+} from 'fabric/es'
 import type { ImageEditor } from '../../../../src/editor'
 import type {
   CropSession,

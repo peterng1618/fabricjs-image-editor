@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define -- Публичные функции держим выше private helpers. */
-import type { FabricImage } from 'fabric'
+import type { FabricImage } from 'fabric/es'
 
 import {
   getCropRectInSource,

@@ -1,4 +1,4 @@
-import { Canvas, Pattern, Point } from 'fabric'
+import { Canvas, Pattern, Point } from 'fabric/es'
 import { nanoid } from 'nanoid'
 import { ImageEditor } from '../../../src/editor'
 import { addRectangleToCanvas } from '../../../src/editor/utils/primitive-shapes'

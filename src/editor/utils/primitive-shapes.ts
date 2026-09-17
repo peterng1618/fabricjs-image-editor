@@ -7,7 +7,7 @@ import {
   Rect,
   RectProps,
   Triangle
-} from 'fabric'
+} from 'fabric/es'
 import { nanoid } from 'nanoid'
 import { snapObjectToPixelGrid } from './geometry'
 

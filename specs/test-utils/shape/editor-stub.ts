@@ -1,4 +1,4 @@
-import { Group, Point } from 'fabric'
+import { Group, Point } from 'fabric/es'
 import type { MockCanvas } from './factories'
 import { createMockCanvas, createMockShapeTextbox } from './factories'
 

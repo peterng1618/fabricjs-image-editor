@@ -1,4 +1,4 @@
-import type { FabricObject } from 'fabric'
+import type { FabricObject } from 'fabric/es'
 import MeasurementManager from '../../../../src/editor/measurement-manager'
 import {
   createBoundsObject,

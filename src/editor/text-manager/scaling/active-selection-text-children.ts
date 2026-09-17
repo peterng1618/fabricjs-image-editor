@@ -1,4 +1,4 @@
-import { Textbox, type ActiveSelection } from 'fabric'
+import { Textbox, type ActiveSelection } from 'fabric/es'
 
 import { BackgroundTextbox } from '../background-textbox'
 import type { EditorTextbox } from '../types'

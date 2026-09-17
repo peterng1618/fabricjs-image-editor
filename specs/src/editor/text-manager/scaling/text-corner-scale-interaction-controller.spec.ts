@@ -1,4 +1,4 @@
-import { Control } from 'fabric'
+import { Control } from 'fabric/es'
 import TextCornerScaleMeasurer from '../../../../../src/editor/text-manager/scaling/text-corner-scale-measurer'
 import * as TextCornerScalePlan from '../../../../../src/editor/text-manager/scaling/text-corner-scale-plan'
 import {

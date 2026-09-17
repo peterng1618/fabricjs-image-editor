@@ -2,7 +2,7 @@ import {
   Point,
   type FabricObject,
   type Rect
-} from 'fabric'
+} from 'fabric/es'
 
 import type {
   CropFrameTransformState,

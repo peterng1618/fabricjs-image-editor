@@ -1,4 +1,4 @@
-import type { FabricImage, FabricObject, Rect } from 'fabric'
+import type { FabricImage, FabricObject, Rect } from 'fabric/es'
 
 /**
  * Режимы работы crop manager.

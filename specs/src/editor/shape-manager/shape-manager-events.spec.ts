@@ -1,5 +1,5 @@
 import '../../../test-utils/shape/manager-module-mocks'
-import { ActiveSelection, Point } from 'fabric'
+import { ActiveSelection, Point } from 'fabric/es'
 import ShapeManager from '../../../../src/editor/shape-manager'
 import {
   createShapeManagerEditorStub,

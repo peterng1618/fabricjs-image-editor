@@ -1,4 +1,4 @@
-import type { Transform } from 'fabric'
+import type { Transform } from 'fabric/es'
 import type { ObjectBounds } from '../../utils/geometry'
 import { getObjectExactBounds } from '../../utils/geometry'
 import type { ScaleSceneEdge } from '../../snapping-manager/scaling/scale-projection'

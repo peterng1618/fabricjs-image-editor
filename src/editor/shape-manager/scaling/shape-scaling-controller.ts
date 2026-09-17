@@ -3,7 +3,7 @@ import {
   Canvas,
   Point,
   Transform
-} from 'fabric'
+} from 'fabric/es'
 import {
   applyFixedWidthShapeTextLayout,
   applyShapeTextLayout

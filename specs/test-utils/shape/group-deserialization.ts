@@ -4,7 +4,7 @@ import {
   LayoutStrategy,
   Textbox,
   classRegistry
-} from 'fabric'
+} from 'fabric/es'
 
 class MockShapeObject extends FabricObject {
   static type = 'mock-shape'

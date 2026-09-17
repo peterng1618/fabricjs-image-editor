@@ -1,4 +1,4 @@
-import type { Canvas } from 'fabric'
+import type { Canvas } from 'fabric/es'
 import type { CanvasFullState } from '../../../../src/editor/history-manager'
 import {
   applyCustomDataFromState,

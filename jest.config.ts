@@ -24,7 +24,7 @@ const config: Config.InitialOptions = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^nanoid$': '<rootDir>/specs/__mocks__/nanoid.ts',
-    '^fabric$': '<rootDir>/specs/__mocks__/fabric.ts',
+    '^fabric/es$': '<rootDir>/specs/__mocks__/fabric.ts',
     '^jsondiffpatch/with-text-diffs$': '<rootDir>/specs/__mocks__/jsondiffpatch.ts',
     '^jsondiffpatch$': '<rootDir>/specs/__mocks__/jsondiffpatch.ts',
     '\\?worker$': '<rootDir>/specs/__mocks__/worker.ts'

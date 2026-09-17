@@ -1,5 +1,5 @@
 import '../../../test-utils/shape/manager-module-mocks'
-import { ActiveSelection, Group } from 'fabric'
+import { ActiveSelection, Group } from 'fabric/es'
 import ShapeManager from '../../../../src/editor/shape-manager'
 import ShapeLifecycleController from '../../../../src/editor/shape-manager/lifecycle/shape-lifecycle-controller'
 import ShapeScalingController from '../../../../src/editor/shape-manager/scaling/shape-scaling-controller'

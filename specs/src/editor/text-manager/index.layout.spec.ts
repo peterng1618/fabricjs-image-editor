@@ -1,4 +1,4 @@
-import { Path } from 'fabric'
+import { Path } from 'fabric/es'
 import { BackgroundTextbox } from '../../../../src/editor/text-manager/background-textbox'
 import {
   createTemplateLikeTextbox

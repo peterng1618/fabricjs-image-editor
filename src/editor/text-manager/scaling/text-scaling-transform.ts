@@ -1,7 +1,7 @@
 import {
   Transform,
   controlsUtils
-} from 'fabric'
+} from 'fabric/es'
 import type { EditorTextbox } from '../types'
 
 export type TextScalingAxisState = {

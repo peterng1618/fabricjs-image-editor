@@ -1,4 +1,4 @@
-import { FabricObject, FabricObjectProps, util } from 'fabric'
+import { FabricObject, FabricObjectProps, util } from 'fabric/es'
 
 import {
   SQUARE_SIZE,

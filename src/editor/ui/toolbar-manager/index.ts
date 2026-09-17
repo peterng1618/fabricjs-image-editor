@@ -6,7 +6,7 @@ import {
   ModifiedEvent,
   TPointerEvent,
   TPointerEventInfo
-} from 'fabric'
+} from 'fabric/es'
 import { ImageEditor } from '../..'
 import { resolveShapeGroupFromTarget } from '../../shape-manager/domain/shape-reference'
 import defaultConfig from './default-config'

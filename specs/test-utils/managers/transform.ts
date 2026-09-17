@@ -2,7 +2,7 @@ import {
   ActiveSelection,
   Rect,
   type FabricObject
-} from 'fabric'
+} from 'fabric/es'
 import { ShapeGroupObject } from '../../../src/editor/shape-manager/domain/shape-group'
 import {
   createMockShapeNode,

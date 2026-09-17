@@ -2,7 +2,7 @@ import {
   FabricImage,
   Point,
   Rect
-} from 'fabric'
+} from 'fabric/es'
 
 import type { ImageEditor } from '../../../src/editor'
 import { createEditorStub } from '../editor/editor-stub'

@@ -3,7 +3,7 @@ import {
   controlsUtils,
   type FabricObject,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 const SHAPE_CORNER_CONTROL_KEYS = ['tl', 'tr', 'bl', 'br'] as const
 

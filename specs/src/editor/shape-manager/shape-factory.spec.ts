@@ -1,4 +1,4 @@
-import { Rect } from 'fabric'
+import { Rect } from 'fabric/es'
 import { nanoid } from 'nanoid'
 import {
   createShapeNode,

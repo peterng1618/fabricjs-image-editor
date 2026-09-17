@@ -1,4 +1,4 @@
-import { Control, Group, Rect } from 'fabric'
+import { Control, Group, Rect } from 'fabric/es'
 import type { RectangularScaleControlKey } from '../../../../../src/editor/snapping-manager/scaling/rectangular-scale-gesture-projection'
 import {
   captureActiveSelectionImageLocalStates,

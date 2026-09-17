@@ -5,7 +5,7 @@ import {
   type Point,
   type TPointerEvent,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 import type { ImageEditor } from '../..'
 import { errorCodes } from '../../error-manager/error-codes'

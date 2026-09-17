@@ -2,7 +2,7 @@ import type {
   FabricObject,
   TextStyle,
   TextboxProps
-} from 'fabric'
+} from 'fabric/es'
 import type { ObjectPlacement } from '../canvas-manager'
 import type {
   BackgroundTextbox,

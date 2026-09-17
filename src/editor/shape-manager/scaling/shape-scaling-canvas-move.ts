@@ -1,4 +1,4 @@
-import type { Canvas } from 'fabric'
+import type { Canvas } from 'fabric/es'
 
 import { resolveMinimumShapeWidthForText } from '../layout/shape-layout'
 import type {

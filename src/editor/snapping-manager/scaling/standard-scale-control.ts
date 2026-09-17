@@ -4,7 +4,7 @@ import {
   type FabricObject,
   type TPointerEvent,
   type Transform
-} from 'fabric'
+} from 'fabric/es'
 
 /** Эталонные ручки Fabric для обычного прямоугольного скейлинга. */
 const STANDARD_RECTANGULAR_SCALE_CONTROLS: Readonly<Record<string, Control>> = Object.freeze(

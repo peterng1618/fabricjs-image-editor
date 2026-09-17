@@ -4,7 +4,7 @@ import {
   FabricObject,
   FabricImage,
   Rect
-} from 'fabric'
+} from 'fabric/es'
 import { create as diffPatchCreate } from 'jsondiffpatch/with-text-diffs'
 import type { DiffPatcher, Delta } from 'jsondiffpatch'
 import { nanoid } from 'nanoid'

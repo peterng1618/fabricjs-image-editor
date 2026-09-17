@@ -3,7 +3,7 @@ import {
   classRegistry,
   type Canvas,
   type RectProps
-} from 'fabric'
+} from 'fabric/es'
 
 export const AI_GENERATION_OVERLAY_TYPE = 'ai-generation-overlay'
 
