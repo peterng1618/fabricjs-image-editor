@@ -63,6 +63,18 @@ describe('loadStateFromFullState', () => {
     )
   })
 
+  it('uses an embedding application reviver when supplied', async() => {
+    const { historyManager, mockCanvas, mockEditor } = createHistoryManagerTestSetup()
+    const reviveHistoryState = jest.fn(async() => undefined)
+    mockEditor.options.reviveHistoryState = reviveHistoryState
+    const state = createHistoryState({ objects: [{ id: 'montage-area', type: 'rect' }] as any[] })
+
+    await historyManager.loadStateFromFullState(state)
+
+    expect(reviveHistoryState).toHaveBeenCalledWith(mockCanvas, expect.objectContaining({ objects: state.objects }))
+    expect(mockCanvas.loadFromJSON).not.toHaveBeenCalled()
+  })
+
   it('сериализует customData для loadFromJSON и восстанавливает объект без мутации состояния', async() => {
     const { historyManager, mockEditor } = createHistoryManagerTestSetup()
     const customData = {

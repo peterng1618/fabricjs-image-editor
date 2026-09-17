@@ -354,7 +354,8 @@ export default class HistoryManager {
    */
   private _serializeCanvasState(): CanvasFullState {
     const { canvas } = this
-    return canvas.toDatalessObject([...OBJECT_SERIALIZATION_PROPS]) as CanvasFullState
+    return (this.editor.options.serializeHistoryState?.(canvas)
+      ?? canvas.toDatalessObject([...OBJECT_SERIALIZATION_PROPS])) as CanvasFullState
   }
 
   /**
@@ -694,7 +695,7 @@ export default class HistoryManager {
     const safeState = createLoadSafeState({ state: fullState })
 
     await this.editor.options.beforeHistoryStateLoad?.(canvas)
-    await canvas.loadFromJSON(safeState)
+    await (this.editor.options.reviveHistoryState?.(canvas, safeState) ?? canvas.loadFromJSON(safeState))
     applyCustomDataFromState({ state: fullState, canvas })
 
     // Восстанавливаем ссылки на montageArea и overlay в редакторе

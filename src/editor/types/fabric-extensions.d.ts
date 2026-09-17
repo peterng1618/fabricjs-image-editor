@@ -179,6 +179,10 @@ declare module 'fabric/es' {
     prepareObjectClone?: (object: FabricObjectInstance) => void
     /** Releases external object resources before history replaces the canvas graph. */
     beforeHistoryStateLoad?: (canvas: CanvasInstance) => void | Promise<void>
+    /** Overrides history snapshot serialization for an embedding application. */
+    serializeHistoryState?: (canvas: CanvasInstance) => object
+    /** Overrides history scene revival for an embedding application. */
+    reviveHistoryState?: (canvas: CanvasInstance, state: object) => void | Promise<void>
     /**
      * Коллбэк, который будет вызван при готовности редактора.
      * Используется для выполнения действий после полной инициализации редактора.

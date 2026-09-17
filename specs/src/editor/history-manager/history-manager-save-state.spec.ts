@@ -47,6 +47,19 @@ describe('saveState и getFullState', () => {
     expect(mockCanvas.fire).not.toHaveBeenCalledWith('editor:history-changed', expect.anything())
   })
 
+  it('uses an embedding application serializer when supplied', () => {
+    const { historyManager, mockCanvas, mockEditor } = createHistoryManagerTestSetup()
+    const state = createHistoryState({ objects: [{ id: 'object-1', type: 'rect' }] as any[] })
+    const serializeHistoryState = jest.fn(() => state)
+    mockEditor.options.serializeHistoryState = serializeHistoryState
+
+    historyManager.saveState()
+
+    expect(serializeHistoryState).toHaveBeenCalledWith(mockCanvas)
+    expect(mockCanvas.toDatalessObject).not.toHaveBeenCalled()
+    expect(historyManager.baseState).toEqual(state)
+  })
+
   it('добавляет диффы после установки базового состояния', () => {
     const { historyManager, mockCanvas } = createHistoryManagerTestSetup()
     const baseState = createHistoryState({
