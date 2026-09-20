@@ -47,6 +47,26 @@ describe('saveState и getFullState', () => {
     expect(mockCanvas.fire).not.toHaveBeenCalledWith('editor:history-changed', expect.anything())
   })
 
+  it('replaces prior history with the current state as its undo baseline', () => {
+    const { historyManager, mockCanvas } = createHistoryManagerTestSetup()
+    const blank = createHistoryState({ objects: [] as any[] })
+    const opened = createHistoryState({ objects: [{ id: 'object-1', type: 'rect' }] as any[] })
+
+    mockCanvas.toDatalessObject
+      .mockReturnValueOnce(blank)
+      .mockReturnValueOnce(opened)
+      .mockReturnValueOnce(opened)
+
+    historyManager.saveState()
+    historyManager.saveState()
+    historyManager.resetHistory()
+
+    expect(historyManager.baseState).toEqual(opened)
+    expect(historyManager.patches).toEqual([])
+    expect(historyManager.currentIndex).toBe(0)
+    expect(historyManager.totalChangesCount).toBe(0)
+  })
+
   it('uses an embedding application serializer when supplied', () => {
     const { historyManager, mockCanvas, mockEditor } = createHistoryManagerTestSetup()
     const state = createHistoryState({ objects: [{ id: 'object-1', type: 'rect' }] as any[] })

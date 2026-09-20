@@ -659,6 +659,20 @@ export default class HistoryManager {
     }
   }
 
+  /** Starts a new undo history from the canvas state loaded by an embedding app. */
+  public resetHistory(): void {
+    if (this.skipHistory) return
+
+    this._clearPendingSave()
+    this._clearPendingCommittedState()
+    this._clearPendingAction()
+    this.baseState = this._captureCurrentState()
+    this.patches = []
+    this.currentIndex = 0
+    this.totalChangesCount = 0
+    this.baseStateChangesCount = 0
+  }
+
   /**
    * Функция загрузки состояния в канвас.
    * @param fullState - полное состояние канваса

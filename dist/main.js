@@ -2980,6 +2980,9 @@ var tn = class {
 			}
 		}
 	}
+	resetHistory() {
+		this.skipHistory || (this._clearPendingSave(), this._clearPendingCommittedState(), this._clearPendingAction(), this.baseState = this._captureCurrentState(), this.patches = [], this.currentIndex = 0, this.totalChangesCount = 0, this.baseStateChangesCount = 0);
+	}
 	async loadStateFromFullState(e) {
 		if (!e) return;
 		console.log("loadStateFromFullState fullState", e);
