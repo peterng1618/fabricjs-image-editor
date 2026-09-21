@@ -46,6 +46,8 @@ import type { ImportImageOptions } from './image-manager'
  * @class
  */
 export class ImageEditor {
+  private destroyed = false
+
   /**
    * Опции и настройки редактора
    */
@@ -436,6 +438,9 @@ export class ImageEditor {
    * Метод для удаления редактора и всех слушателей.
    */
   public destroy(): void {
+    if (this.destroyed) return
+    this.destroyed = true
+
     this.listeners.destroy()
     this.shapeManager?.destroy()
     this.textManager?.destroy()
