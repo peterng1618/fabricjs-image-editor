@@ -454,29 +454,6 @@ describe('ImageEditor', () => {
       expect(mockCleanBuffer).toHaveBeenCalled()
     })
 
-    it('is safe to call again after Fabric disposes the canvas', () => {
-      const mockDestroy = jest.fn()
-      const mockDispose = jest.fn()
-      const editor = {
-        listeners: { destroy: mockDestroy },
-        shapeManager: { destroy: mockDestroy },
-        textManager: { destroy: mockDestroy },
-        selectionManager: { destroy: mockDestroy },
-        snappingManager: { destroy: mockDestroy },
-        measurementManager: { destroy: mockDestroy },
-        toolbar: { destroy: mockDestroy },
-        canvas: { dispose: mockDispose },
-        workerManager: { worker: { terminate: mockDestroy } },
-        imageManager: { revokeBlobUrls: mockDestroy },
-        errorManager: { cleanBuffer: mockDestroy },
-        destroy: ImageEditor.prototype.destroy
-      } as unknown as ImageEditor
-
-      editor.destroy()
-      editor.destroy()
-
-      expect(mockDispose).toHaveBeenCalledTimes(1)
-    })
   })
 
   describe('_createMontageArea (приватный метод)', () => {

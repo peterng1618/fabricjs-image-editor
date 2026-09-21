@@ -1200,20 +1200,21 @@ class Listeners {
       document.removeEventListener('keydown', this.handleSpaceKeyDownBound, { capture: true })
       document.removeEventListener('keyup', this.handleSpaceKeyUpBound, { capture: true })
     }
-    if (this.options.mouseWheelZooming || this.options.canvasDragging) {
-      this.canvas.wrapperEl.removeEventListener('wheel', this.handleCanvasWheelInputBound, {
+    const wrapper = this.canvas.wrapperEl
+    if (wrapper && (this.options.mouseWheelZooming || this.options.canvasDragging)) {
+      wrapper.removeEventListener('wheel', this.handleCanvasWheelInputBound, {
         capture: true
       })
     }
 
-    if (this.options.mouseWheelZooming) {
-      this.canvas.wrapperEl.removeEventListener('gesturestart', this.handleCanvasGestureStartBound, {
+    if (wrapper && this.options.mouseWheelZooming) {
+      wrapper.removeEventListener('gesturestart', this.handleCanvasGestureStartBound, {
         capture: true
       })
-      this.canvas.wrapperEl.removeEventListener('gesturechange', this.handleCanvasGestureChangeBound, {
+      wrapper.removeEventListener('gesturechange', this.handleCanvasGestureChangeBound, {
         capture: true
       })
-      this.canvas.wrapperEl.removeEventListener('gestureend', this.handleCanvasGestureEndBound, {
+      wrapper.removeEventListener('gestureend', this.handleCanvasGestureEndBound, {
         capture: true
       })
     }
