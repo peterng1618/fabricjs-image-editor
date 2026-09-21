@@ -80,4 +80,12 @@ describe('ToolbarManager', () => {
     expect(text.setCoords).not.toHaveBeenCalled()
     expect(actionHandler).toHaveBeenCalledWith(mockEditor, group)
   })
+
+  it('disposes safely when the toolbar is disabled', () => {
+    const { mockEditor } = createManagerTestMocks()
+    mockEditor.options.showToolbar = false
+    const toolbarManager = new ToolbarManager({ editor: mockEditor })
+
+    expect(() => toolbarManager.destroy()).not.toThrow()
+  })
 })

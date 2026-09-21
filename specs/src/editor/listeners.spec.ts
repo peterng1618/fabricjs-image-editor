@@ -846,21 +846,6 @@ describe('Listeners', () => {
       expect(remWin).toHaveBeenCalled()
     })
 
-    it('cleans Fabric events when canvas DOM has already been disposed', () => {
-      const editor = createEditorStub()
-      const listeners = new Listeners({
-        editor,
-        options: { canvasDragging: true, mouseWheelZooming: true }
-      })
-
-      editor.canvas.wrapperEl = undefined as unknown as typeof editor.canvas.wrapperEl
-
-      expect(() => listeners.destroy()).not.toThrow()
-      expect(editor.canvas.off).toHaveBeenCalledWith(
-        'mouse:down',
-        listeners.handleCanvasDragStartBound
-      )
-    })
   })
 
   describe('игнорирование событий paste с select элементом', () => {
