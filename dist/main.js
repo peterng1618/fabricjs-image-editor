@@ -27101,7 +27101,7 @@ var AC = {
 	}
 }, FC = class e {
 	constructor(e, t) {
-		this.options = t, this.containerId = e, this.editorId = `${e}-${E()}`, this.init();
+		this.destroyed = !1, this.options = t, this.containerId = e, this.editorId = `${e}-${E()}`, this.init();
 	}
 	async init() {
 		let { editorContainerWidth: e, editorContainerHeight: n, canvasWrapperWidth: r, canvasWrapperHeight: i, canvasCSSWidth: a, canvasCSSHeight: o, initialImage: s, initialState: c, scaleType: l, showRotationAngle: u, showObjectSizeOnScale: d, showViewportScrollbars: f, _onReadyCallback: p } = this.options;
@@ -27193,7 +27193,7 @@ var AC = {
 		});
 	}
 	destroy() {
-		this.listeners.destroy(), this.shapeManager?.destroy(), this.textManager?.destroy(), this.selectionManager.destroy(), this.snappingManager?.destroy(), this.measurementManager?.destroy(), this.toolbar.destroy(), this.angleIndicator?.destroy(), this.objectSizeIndicator?.destroy(), this.viewportScrollbars?.destroy(), this.cropManager?.destroy(), this.canvas.dispose(), this.workerManager.worker.terminate(), this.imageManager.revokeBlobUrls(), this.errorManager.cleanBuffer();
+		this.destroyed || (this.destroyed = !0, this.listeners.destroy(), this.shapeManager?.destroy(), this.textManager?.destroy(), this.selectionManager.destroy(), this.snappingManager?.destroy(), this.measurementManager?.destroy(), this.toolbar.destroy(), this.angleIndicator?.destroy(), this.objectSizeIndicator?.destroy(), this.viewportScrollbars?.destroy(), this.cropManager?.destroy(), this.canvas.dispose(), this.workerManager.worker.terminate(), this.imageManager.revokeBlobUrls(), this.errorManager.cleanBuffer());
 	}
 	static _createMosaicPattern() {
 		let e = document.createElement("canvas");
